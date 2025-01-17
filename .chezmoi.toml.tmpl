@@ -1,0 +1,6 @@
+# vi: ft=toml
+
+{{ if eq .chezmoi.os "windows" -}}
+[interpreters]
+    sh = { command = 'C:/Users/will/AppData/Local/Programs/Git/bin/bash.exe' }
+{{ end }}

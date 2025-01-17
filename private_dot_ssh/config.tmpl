@@ -1,0 +1,21 @@
+# vi: ft=sshconfig
+CanonicalizeHostname yes
+
+# --------------------- Generic -------------------
+
+Host nas
+    User vagrant
+    HostName 10.0.0.6
+
+# --------------------- Persist -------------------
+
+Host *
+{{ if ne .chezmoi.os "windows" }}
+    ControlMaster auto
+    ControlPath ~/.ssh/sockets/%r@%h-%p
+    ControlPersist 600
+{{ end }}
+    ServerAliveInterval 5
+    ServerAliveCountMax 3
+    GSSAPIAuthentication no
+

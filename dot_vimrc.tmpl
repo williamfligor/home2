@@ -1,0 +1,182 @@
+{{/*
+# vi: ft=vim
+*/}}
+let mapleader = "\<SPACE>"
+let g:spacemacs#leader = '<SPACE>'
+
+let g:spacemacs#excludes = [
+\ 'b',
+\ 'p',
+\ ]
+
+if has('nvim')
+    let g:python3_host_prog = expand('~/pyenvs/py3nvim/bin/python')
+endif
+
+let g:pydocstring_doq_path = expand('~/pyenvs/py3nvim/bin/doq')
+let g:pydocstring_formatter = 'google'
+
+{{ if eq .chezmoi.os "windows" -}}
+let g:fzf_vim = {}
+let g:fzf_vim.preview_bash = '{{ .chezmoi.homeDir }}/AppData/Local/Programs/Git/bin/bash.exe'
+{{ end }}
+
+" ----- KEY MAPPINGS -------
+nnoremap <silent> <leader> :WhichKey '<Space>'<CR>
+nnoremap <leader>rn :call NumberToggle()<Cr>
+nnoremap <leader><space> :noh<cr>
+nnoremap <space>bb :Buffers<CR>
+nnoremap <space>pf :GFiles<CR>
+nnoremap <space>ff :Files<CR>
+nnoremap <space>md :Dox<CR>
+
+" Remove trailing whitespace
+nnoremap <leader>W :%s/\s\+$//<cr>:let @/=\'\'<CR>
+
+" Make %% in command line expand to the path of the current buffer
+cnoremap <expr> %% getcmdtype() == ':' ? expand('%:h').'/' : '%%'
+
+" Reselect after indent outdent
+vnoremap < <gv
+vnoremap > >gv
+
+" Reselect after indent outdent
+vnoremap < <gv
+
+" Built in autocomplete
+set completeopt+=menuone 
+set completeopt+=noselect
+set completeopt+=noinsert
+set shortmess+=c   " Shut off completion messages
+set belloff+=ctrlg " If Vim beeps during completion
+
+" Searching
+set incsearch
+set showmatch
+set hlsearch
+
+set tabstop=4
+set shiftwidth=4
+set softtabstop=4
+set expandtab
+set showcmd
+set showmode
+set visualbell
+set cursorline
+set ttyfast
+set ruler
+set laststatus=2
+set nrformats=
+set number
+set undofile
+set relativenumber
+filetype plugin indent on
+
+" Make :e <part of a filename><tab> more bash-like
+set wildmode=longest:full,full
+
+" Fix indentation of C switches
+set cinoptions+=l1
+
+" Theming
+syntax on
+set background=light
+silent! colorscheme solarized
+
+" Airline Theme
+let g:airline_theme='solarized'
+let g:airline_powerline_fonts = 1
+
+" Markdown plugin
+let g:vim_markdown_folding_disabled = 1
+
+" Pydocstring Plugin
+let g:pydocstring_enable_mapping = 0
+
+" EditorConfig
+let g:EditorConfig_exclude_patterns = ['fugitive://.*', 'scp://.*']
+
+" Restore cursor position to where it was before
+augroup JumpCursorOnEdit
+  au!
+  autocmd BufReadPost *
+	      \ if expand("<afile>:p:h") !=? $TEMP |
+	      \   if line("'\"") > 1 && line("'\"") <= line("$") |
+	      \     let JumpCursorOnEdit_foo = line("'\"") |
+	      \     let b:doopenfold = 1 |
+	      \     if (foldlevel(JumpCursorOnEdit_foo) > foldlevel(JumpCursorOnEdit_foo - 1)) |
+	      \        let JumpCursorOnEdit_foo = JumpCursorOnEdit_foo - 1 |
+	      \        let b:doopenfold = 2 |
+	      \     endif |
+	      \     exe JumpCursorOnEdit_foo |
+	      \   endif |
+	      \ endif
+  " Need to postpone using "zv" until after reading the modelines.
+  autocmd BufWinEnter *
+	      \ if exists("b:doopenfold") |
+	      \   exe "normal zv" |
+	      \   if(b:doopenfold > 1) |
+	      \       exe  "+".1 |
+	      \   endif |
+	      \   unlet b:doopenfold |
+	      \ endif
+augroup END
+
+" Toggle relative numbers
+function! NumberToggle()
+  if(&relativenumber == 1)
+      set norelativenumber
+      set number
+  else
+      set nonumber
+      set relativenumber
+  endif
+endfunc
+
+source ~/.vim/utils/spacemacs.vim
+source ~/.vim/utils/indent-tcl.vim
+
+if has('nvim')
+    let &directory = expand('~/.vim/nswap')
+    let &undodir = expand('~/.vim/nundo')
+    let &backupdir = expand('~/.vim/nbackup')
+else
+    let &directory = expand('~/.vim/swap')
+    let &undodir = expand('~/.vim/undo')
+    let &backupdir = expand('~/.vim/backup')
+endif
+
+if !isdirectory(&directory)
+  call mkdir(&directory)
+endif
+if !isdirectory(&undodir)
+  call mkdir(&undodir)
+endif
+if !isdirectory(&backupdir)
+  call mkdir(&backupdir)
+endif
+
+try
+    " fix wezterm stuff
+    let &t_BE="\<Esc>[?2004h"
+    let &t_BD="\<Esc>[?2004l"
+    let &t_PS="\<Esc>[200~"
+    let &t_PE="\<Esc>[201~"
+endtry
+
+let g:spacemacs#plugins = [
+            \ 'heavenshell/vim-pydocstring',
+            \ 'airblade/vim-gitgutter',
+            \ 'easymotion/vim-easymotion',
+            \ 'kien/ctrlp.vim',
+            \ 'mbbill/undotree',
+            \ 'rking/ag.vim',
+            \ 'scrooloose/nerdtree',
+            \ 'shougo/unite.vim',
+            \ 'szw/vim-maximizer',
+            \ 'tpope/vim-commentary',
+            \ 'tpope/vim-fugitive',
+            \ ]
+
+call SpacemacsInit()
+" autocmd FileType * RainbowParentheses

@@ -1,0 +1,16 @@
+# vi: ft=bash
+set -o vi
+
+source /etc/bash.bashrc
+
+# ------------------------ Aliases --------------------------------
+
+{{ template "aliases.sh" . }}
+
+# ------------------------ Env --------------------------------
+
+{{ template "env.sh" . }}
+
+{{ if eq .chezmoi.os "windows" -}}
+export PATH=$PATH:/c/Program\ Files/Oracle/VirtualBox
+{{ end -}}

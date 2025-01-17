@@ -1,0 +1,293 @@
+#!/usr/bin/env python3
+
+# install.yml hash: {{ include "data/manifest.py" | sha256sum }}
+
+from pathlib import Path
+from typing import Tuple
+import sys
+from urllib.parse import urlparse
+import subprocess
+import tarfile
+import zipfile
+import lzma
+import importlib.util
+import os
+from zipfile import ZipFile, ZipInfo
+import shutil
+from contextlib import contextmanager
+
+import tempfile
+import urllib.request
+
+ccd = Path("{{ .chezmoi.config.sourceDir }}")
+
+# Manually import the manifest file
+spec = importlib.util.spec_from_file_location("manifest", ccd / "data" / "manifest.py")
+manifest = importlib.util.module_from_spec(spec)
+sys.modules["manifest"] = manifest
+spec.loader.exec_module(manifest)
+
+data = manifest.data
+
+# Calculate root directory
+root = Path.home() / ".local" / "share" / "packages"
+root.mkdir(exist_ok=True, parents=True)
+
+
+def run_commands(commands, cwd=None):
+    with tempfile.NamedTemporaryFile(mode="w", delete=True) as f:
+        f.write("#!/bin/bash\n")
+        f.write("set -eoux pipefail\n")
+        for line in commands:
+            f.write(f"{line}\n")
+        f.flush()
+
+        try:
+            result = subprocess.run(
+                "/bin/bash " + f.name,
+                shell=True,
+                stdout=None,
+                stderr=None,
+                text=True,
+                cwd=cwd,
+            )
+
+            if result.returncode == 0:
+                print("Success")
+            else:
+                raise Exception("Error occurred")
+
+            return result.returncode
+
+        except subprocess.SubprocessError as e:
+            print(f"Failed to execute commands: {e}")
+            return 1
+
+
+class ZipFileWithPermissions(ZipFile):
+    """Custom ZipFile class handling file permissions."""
+
+    def _extract_member(self, member, targetpath, pwd):
+        if not isinstance(member, ZipInfo):
+            member = self.getinfo(member)
+
+        targetpath = super()._extract_member(member, targetpath, pwd)
+
+        attr = member.external_attr >> 16
+        if attr != 0:
+            os.chmod(targetpath, attr)
+        return targetpath
+
+
+def mount_dmg(dmg_path: Path) -> Tuple[Path, str]:
+    """
+    Mount a DMG file and return the mount point and volume name.
+
+    Args:
+        dmg_path: Path to the DMG file
+
+    Returns:
+        Tuple containing (mount_point, volume_name)
+
+    Raises:
+        subprocess.CalledProcessError: If mounting fails
+        FileNotFoundError: If DMG file doesn't exist
+    """
+    # Convert string to Path if necessary
+    dmg_path = Path(dmg_path)
+
+    if not dmg_path.exists():
+        raise FileNotFoundError(f"DMG file not found: {dmg_path}")
+
+    # Mount the DMG
+    try:
+        result = subprocess.check_output(
+            ["hdiutil", "attach", str(dmg_path), "-nobrowse"],
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"Failed to mount DMG: {e.output}")
+
+    # Parse the output to get mount point and volume name
+    # Example output line: "/dev/disk4s1 Apple_HFS /Volumes/App Name"
+    for line in result.split("\n"):
+        if "/Volumes/" in line:
+            parts = line.strip().split("\t")
+            if len(parts) >= 3:
+                mount_point = Path(parts[-1])
+                volume_name = mount_point.name
+                return mount_point, volume_name
+
+    raise RuntimeError("Failed to parse mount point from hdiutil output")
+
+
+def unmount_dmg(mount_point: str) -> None:
+    """
+    Unmount a previously mounted DMG.
+
+    Args:
+        mount_point: The mount point path to unmount
+
+    Raises:
+        subprocess.CalledProcessError: If unmounting fails
+    """
+    try:
+        subprocess.check_call(["hdiutil", "detach", mount_point])
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"Failed to unmount DMG at {mount_point}: {str(e)}")
+
+
+@contextmanager
+def mounted_dmg(dmg_path: str):
+    """
+    Context manager for safely mounting and unmounting DMGs.
+
+    Usage:
+        with mounted_dmg("path/to/file.dmg") as (mount_point, volume_name):
+            # do something with mounted DMG
+    """
+    mount_point = None
+    try:
+        mount_point, volume_name = mount_dmg(dmg_path)
+        yield mount_point, volume_name
+    finally:
+        if mount_point:
+            unmount_dmg(mount_point)
+
+
+def detect_and_extract(archive_path: Path, destination: Path):
+    """
+    Detect archive type and extract to a temporary directory.
+    Returns the path to the temporary directory where files were extracted.
+    """
+    # Convert to Path object and resolve any symlinks
+    archive_path = archive_path.resolve()
+
+    print(f"Extracting {archive_path.name} to {destination}")
+
+    # Check if it's a zip file
+    if zipfile.is_zipfile(archive_path):
+        print("Detected ZIP archive")
+        with ZipFileWithPermissions(archive_path, "r") as zip_ref:
+            zip_ref.extractall(destination)
+        return destination
+
+    # Check if it's a tar archive (including gz, bz2, xz)
+    if tarfile.is_tarfile(archive_path):
+        print("Detected TAR archive")
+        with tarfile.open(archive_path, "r:*") as tar_ref:
+            tar_ref.extractall(destination)
+        return destination
+
+    # Check if it's a standalone XZ file
+    try:
+        with lzma.open(archive_path) as xz_ref:
+            # Try to read a bit to verify it's a valid XZ file
+            xz_ref.read(1)
+            print("Detected XZ archive")
+            # For XZ files, we need to decompress to a single file
+            output_path = destination / archive_path.stem
+            with open(output_path, "wb") as f:
+                with lzma.open(archive_path) as xz_ref:
+                    f.write(xz_ref.read())
+            return destination
+    except lzma.LZMAError:
+        pass
+
+    if archive_path.suffix == ".dmg":
+        print("Detected dmg image")
+        with mounted_dmg(archive_path) as (mount_point, volume_name):
+            shutil.copytree(mount_point, destination, dirs_exist_ok=True, symlinks=True)
+            return destination
+
+    shutil.copy(archive_path, destination / archive_path.name)
+
+
+def process_package(package: dict) -> None:
+    cmds = package["cmds"]
+
+    if "sources" in package:
+        sources = package["sources"]
+
+        url: None | str = None
+        if isinstance(sources, dict):
+            if "{{ .chezmoi.os }}" in sources:
+                url = sources["{{ .chezmoi.os }}"]
+        else:
+            url = sources
+
+        if url is not None:
+            filename = Path(urlparse(url).path).name
+            archive_dest = root / filename
+
+            if not archive_dest.exists():
+                print(f"Downloading {url} to {archive_dest}...", end="", flush=True)
+
+                # Create a request object with the User-Agent
+                req = urllib.request.Request(
+                    url,
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (Windows; U; Windows NT 5.1; it; rv:1.8.1.11) Gecko/20071127 Firefox/2.0.0.11"
+                    },
+                )
+
+                # Open the URL and save the content to a file
+                with urllib.request.urlopen(req) as response:
+                    with open(archive_dest, "wb") as out_file:
+                        out_file.write(response.read())
+
+                print("Done")
+
+            print(f"Extracting {archive_dest.stem}...")
+            # Create a temporary directory
+            destination = Path(tempfile.mkdtemp())
+            detect_and_extract(archive_dest, destination)
+
+            print("Files...")
+            for file in destination.rglob("*"):
+                print(f"    - {file}")
+
+            print("Running instructions...")
+            run_commands(cmds, destination)
+        else:
+            print(f"URL could not be found for {package}")
+    else:
+        run_commands(cmds)
+
+
+def process(keys: list[str]) -> None:
+    for key, package in data.items():
+        if key not in keys:
+            continue
+
+        if isinstance(package, list):
+            for x in package:
+                process_package(x)
+        else:
+            process_package(package)
+
+        print("Done")
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Install from manifest")
+
+    # Add an argument for each key in the data dictionary
+    for key in data.keys():
+        parser.add_argument(f"--{key}", action="store_true", help=f"Install {key}")
+
+    args = parser.parse_args()
+
+    # Convert args namespace to dictionary and get keys that were set to True
+    args_dict = vars(args)
+    requested_keys = [key for key in args_dict if args_dict[key]]
+
+    # If no arguments were given, use all keys
+    keys_to_process = requested_keys if requested_keys else data.keys()
+
+    # Process the keys
+    for key in keys_to_process:
+        process(key)

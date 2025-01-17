@@ -1,0 +1,21 @@
+##########################################################################################
+# Create a temporarily Network location and recreate the Automatic location.
+##########################################################################################
+networksetup -createlocation TempLoc populate
+sleep 5
+
+networksetup -switchtolocation TempLoc
+sleep 2
+
+networksetup -deletelocation Automatic
+sleep 2
+
+networksetup -createlocation Automatic populate
+sleep 5
+
+networksetup -switchtolocation Automatic
+sleep 5
+
+networksetup -deletelocation TempLoc
+
+exit 0

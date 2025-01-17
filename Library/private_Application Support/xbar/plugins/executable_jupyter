@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# <xbar.title>Jupyter Lab Runner</xbar.title>
+# <xbar.version>v1.0</xbar.version>
+
+if pgrep -qf "jupyter-lab"; then
+    echo "📗"
+    echo "---"
+    echo "Stop | refresh=true | bash='$0' param1=stop terminal=false"
+else
+    echo "📕"
+    echo "---"
+    echo "Start | refresh=true | bash='$0' param1=start terminal=false"
+fi
+
+if [ "$1" = 'start' ]; then
+    . ~/pyenvs/jupyter/bin/activate
+    cd ~/prj/
+    jupyter lab & disown
+    sleep 5
+fi
+
+if [ "$1" = 'stop' ]; then
+    pgrep -f "jupyter-lab" | xargs kill
+    sleep 5
+fi

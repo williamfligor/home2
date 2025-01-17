@@ -1,0 +1,55 @@
+# vi: ft=zsh
+# ------------------------ Early Config --------------------------------
+
+setopt PROMPT_SUBST
+
+case "$TERM" in
+    xterm-color|*-256color) color_prompt=yes;;
+esac
+
+# ------------------------ Oh My Zsh Config --------------------------------
+
+# Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
+# Initialization code that may require console input (password prompts, [y/n]
+# confirmations, etc.) must go above this block; everything else may go below.
+if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
+  source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
+fi
+
+export ZSH="$HOME/.oh-my-zsh"
+
+# Oh my zsh settings
+ZSH_CUSTOM="$HOME/.zsh/custom/"
+ZSH_THEME="powerlevel10k/powerlevel10k"
+ENABLE_CORRECTION="true"
+
+zstyle ':omz:update' mode disabled  # disable automatic updates
+
+plugins=(zsh-syntax-highlighting git vi-mode zsh-you-should-use)
+
+source $ZSH/oh-my-zsh.sh
+
+# To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
+[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+
+# Stop sharing history between terminals.. it's annoying
+# unsetopt SHARE_HISTORY
+
+# Make git alises autocomplete work
+# TODO this broke it
+# setopt complete_aliases
+
+unsetopt correct_all
+
+# ------------------------ Includes --------------------------------
+
+{{ template "env.sh" . }}
+
+{{ if eq .chezmoi.os "windows" -}}
+export PATH=$PATH:/c/Program\ Files/Oracle/VirtualBox
+{{ end -}}
+
+{{ template "aliases.sh" . }}
+
+# ------------------------ Key Bindings --------------------------------
+bindkey -M vicmd '^[' undefined-key

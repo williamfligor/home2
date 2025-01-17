@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+#
+# Easily start/stop a background SSH forwarding connection
+# The list of hosts are extracted from ~/.ssh/config by default
+#
+# To connect to your favorit host, just click the host name
+# To disconnect the host, click the host name that is displayed as "(connecting)"
+#
+# <xbar.title>SSH Tunnel</xbar.title>
+# <xbar.version>v1.0</xbar.version>
+# <xbar.author>mutsune</xbar.author>
+# <xbar.author.github>mutsune</xbar.author.github>
+# <xbar.desc>Easily start/stop a background SSH forwarding connection.</xbar.desc>
+# <xbar.image>https://raw.githubusercontent.com/wiki/mutsune/bitbar-plugins/images/ssh-tunnel.png</xbar.image>
+#
+
+if pgrep -qf "ssh -N"; then
+    echo ":earth_americas:"
+else
+    echo ":globe_with_meridians:"
+fi
+echo "---"
+
+# get host names that are specified forwarding options
+function hosts() {
+    awk '
+        $1 == "Host" {
+            host = $2;
+            next;
+        }
+        $1 == "DynamicForward" || $1 == "LocalForward" {
+            print host;
+        }
+    ' "$1" | uniq
+}
+
+for h in $(hosts ~/.ssh/config); do
+    if pgrep -qf "/bin/bash $HOME/.local/bin/forever /usr/bin/ssh -N ${h}"; then
+        echo "(connecting) ${h} | color=indianred bash=/usr/bin/pkill param1='-f' param2='/bin/bash $HOME/.local/bin/forever /usr/bin/ssh -N ${h}' terminal=false"
+    else
+        echo "${h} | bash=$HOME/.local/bin/background param1=$HOME/.local/bin/forever param2=/usr/bin/ssh param3='-N' param4=${h} terminal=false"
+    fi
+done
