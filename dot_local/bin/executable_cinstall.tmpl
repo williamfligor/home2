@@ -261,11 +261,8 @@ def process(keys: list[str]) -> None:
         if key not in keys:
             continue
 
-        if isinstance(package, list):
-            for x in package:
-                process_package(x)
-        else:
-            process_package(package)
+        for x in package:
+            process_package(x)
 
         print("Done")
 

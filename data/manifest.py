@@ -74,137 +74,165 @@ def dmg_install(source, app_name):
 
 
 data = {
-    "ghostty.dmg": dmg_install(
-        "https://release.files.ghostty.org/1.0.1/Ghostty.dmg", "Ghostty.app"
-    ),
-    "stats": dmg_install(
-        "https://github.com/exelban/stats/releases/download/v2.11.9/Stats.dmg",
-        "Stats.app",
-    ),
-    "neovim": {
-        "sources": {
-            "linux": "https://github.com/neovim/neovim/releases/download/v0.10.3/nvim-linux64.tar.gz",
-            "darwin": "https://github.com/neovim/neovim/releases/download/v0.10.3/nvim-macos-arm64.tar.gz",
-        },
-        "cmds": [
-            "mv nvim-*/ ~/.local/bin/nvim"
-        ],
-    },
-    "ice": {
-        "sources": {
-            "darwin": "https://github.com/jordanbaird/Ice/releases/download/0.11.0-beta.2/Ice.zip",
-        },
-        "cmds": [
-            "mkdir -p ~/Applications",
-            "rm -rf ~/Applications/Ice.app",
-            "rsync -a Ice.app ~/Applications/",
-        ],
-    },
-    "ripgrep": {
-        "sources": {
-            "darwin": "https://github.com/BurntSushi/ripgrep/releases/download/14.0.3/ripgrep-14.0.3-aarch64-apple-darwin.tar.gz",
-        },
-        "cmds": [
-            "mv ripgrep*/rg ~/.local/bin/rg",
-        ],
-    },
-    "xbar": {
-        "sources": {
-            "darwin": "https://github.com/matryer/xbar/releases/download/v2.1.7-beta/xbar.v2.1.7-beta.zip",
-        },
-        "cmds": [
-            "mkdir -p ~/Applications",
-            "rm -rf ~/Applications/xbar.app",
-            "rsync -a xbar.app ~/Applications/",
-        ],
-    },
-    "uv": {
-        "sources": {
-            "linux": "https://github.com/astral-sh/uv/releases/download/0.5.21/uv-x86_64-unknown-linux-musl.tar.gz",
-            "windows": "https://github.com/astral-sh/uv/releases/download/0.5.21/uv-x86_64-pc-windows-msvc.zip",
-            "darwin": "https://github.com/astral-sh/uv/releases/download/0.5.21/uv-aarch64-apple-darwin.tar.gz",
-        },
-        "cmds": [
-            "mv */uvx ~/.local/bin/uvx",
-            "mv */uv ~/.local/bin/uv",
-        ],
-    },
-    "eget": {
-        "sources": {
-            "darwin": "https://github.com/zyedidia/eget/releases/download/v1.3.4/eget-1.3.4-darwin_arm64.tar.gz",
-            "linux": "https://github.com/zyedidia/eget/releases/download/v1.3.4/eget-1.3.4-linux_amd64.tar.gz",
-            "windows": "https://github.com/zyedidia/eget/releases/download/v1.3.4/eget-1.3.4-windows_amd64.zip",
-        },
-        "cmds": [
-            "mv eget*/eget ~/.local/bin/eget",
-            "chmod +x ~/.local/bin/eget",
-        ],
-        "labels": ["eget", "bins"],
-    },
-    "golang": {
-        "sources": {
-            "windows": "https://go.dev/dl/go1.22.1.windows-amd64.zip",
-            "linux": "https://go.dev/dl/go1.22.1.linux-amd64.tar.gz",
-            "darwin": "https://go.dev/dl/go1.22.1.darwin-arm64.tar.gz",
-        },
-        "cmds": ["rm -rf ~/.local/bin/go", "mv go ~/.local/bin/go"],
-        "labels": ["golang"],
-    },
-    "fzf": {
-        "sources": {
-            "linux": "https://github.com/junegunn/fzf/releases/download/0.42.0/fzf-0.42.0-linux_amd64.tar.gz",
-            "darwin": "https://github.com/junegunn/fzf/releases/download/0.42.0/fzf-0.42.0-darwin_arm64.zip",
-        },
-        "cmds": ["mv fzf ~/.local/bin/fzf", "chmod +x ~/.local/bin/fzf"],
-        "labels": [],
-    },
-    "yq": {
-        "sources": {
-            "windows": "https://github.com/mikefarah/yq/releases/download/v4.40.5/yq_windows_amd64.exe",
-            "linux": "https://github.com/mikefarah/yq/releases/download/v4.40.5/yq_linux_amd64",
-            "darwin": "https://github.com/mikefarah/yq/releases/download/v4.40.5/yq_darwin_arm64",
-        },
-        "cmds": ["mv yq* ~/.local/bin/yq", "chmod +x ~/.local/bin/yq"],
-    },
-    "delta": {
-        "sources": {
-            "windows": "https://github.com/dandavison/delta/releases/download/0.17.0/delta-0.17.0-x86_64-pc-windows-msvc.zip",
-            "linux": "https://github.com/dandavison/delta/releases/download/0.17.0/delta-0.17.0-x86_64-unknown-linux-musl.tar.gz",
-            "darwin": "https://github.com/dandavison/delta/releases/download/0.17.0/delta-0.17.0-aarch64-apple-darwin.tar.gz",
-        },
-        "cmds": [
-            "mv delta-*/delta ~/.local/bin/delta",
-            "chmod +x ~/.local/bin/delta",
-        ],
-    },
-    "eza": {
-        "sources": {
-            "windows": "https://github.com/eza-community/eza/releases/download/v0.18.22/eza.exe_x86_64-pc-windows-gnu.tar.gz",
-            "linux": "https://github.com/eza-community/eza/releases/download/v0.18.22/eza_x86_64-unknown-linux-musl.tar.gz",
-        },
-        "cmds": ["mv ./eza ~/.local/bin/eza", "chmod +x ~/.local/bin/eza"],
-    },
-    "bat": {
-        "sources": {
-            "windows": "https://github.com/sharkdp/bat/releases/download/v0.24.0/bat-v0.24.0-x86_64-pc-windows-msvc.zip",
-            "linux": "https://github.com/sharkdp/bat/releases/download/v0.24.0/bat-v0.24.0-x86_64-unknown-linux-musl.tar.gz",
-            "darwin": "https://github.com/sharkdp/bat/releases/download/v0.24.0/bat-v0.24.0-x86_64-apple-darwin.tar.gz",
-        },
-        "cmds": [
-            "mv bat-*/bat ~/.local/bin/bat",
-            "chmod +x ~/.local/bin/bat",
-        ],
-    },
-    "zellij": {
-        "sources": {
-            "linux": "https://github.com/zellij-org/zellij/releases/download/v0.40.0/zellij-x86_64-unknown-linux-musl.tar.gz",
-            "darwin": "https://github.com/zellij-org/zellij/releases/download/v0.40.0/zellij-aarch64-apple-darwin.tar.gz",
-        },
-        "cmds": [
-            "mv zellij ~/.local/bin/zellij",
-            "chmod +x ~/.local/bin/zellij",
-        ],
-    },
+    "ghostty.dmg": [
+        dmg_install(
+            "https://release.files.ghostty.org/1.0.1/Ghostty.dmg", "Ghostty.app"
+        )
+    ],
+    "stats": [
+        dmg_install(
+            "https://github.com/exelban/stats/releases/download/v2.11.9/Stats.dmg",
+            "Stats.app",
+        )
+    ],
+    "neovim": [
+        {
+            "sources": {
+                "linux": "https://github.com/neovim/neovim/releases/download/v0.10.3/nvim-linux64.tar.gz",
+                "darwin": "https://github.com/neovim/neovim/releases/download/v0.10.3/nvim-macos-arm64.tar.gz",
+            },
+            "cmds": ["mv nvim-*/ ~/.local/bin/nvim"],
+        }
+    ],
+    "ice": [
+        {
+            "sources": {
+                "darwin": "https://github.com/jordanbaird/Ice/releases/download/0.11.0-beta.2/Ice.zip",
+            },
+            "cmds": [
+                "mkdir -p ~/Applications",
+                "rm -rf ~/Applications/Ice.app",
+                "rsync -a Ice.app ~/Applications/",
+            ],
+        }
+    ],
+    "ripgrep": [
+        {
+            "sources": {
+                "darwin": "https://github.com/BurntSushi/ripgrep/releases/download/14.0.3/ripgrep-14.0.3-aarch64-apple-darwin.tar.gz",
+            },
+            "cmds": [
+                "mv ripgrep*/rg ~/.local/bin/rg",
+            ],
+        }
+    ],
+    "xbar": [
+        {
+            "sources": {
+                "darwin": "https://github.com/matryer/xbar/releases/download/v2.1.7-beta/xbar.v2.1.7-beta.zip",
+            },
+            "cmds": [
+                "mkdir -p ~/Applications",
+                "rm -rf ~/Applications/xbar.app",
+                "rsync -a xbar.app ~/Applications/",
+            ],
+        }
+    ],
+    "uv": [
+        {
+            "sources": {
+                "linux": "https://github.com/astral-sh/uv/releases/download/0.5.21/uv-x86_64-unknown-linux-musl.tar.gz",
+                "windows": "https://github.com/astral-sh/uv/releases/download/0.5.21/uv-x86_64-pc-windows-msvc.zip",
+                "darwin": "https://github.com/astral-sh/uv/releases/download/0.5.21/uv-aarch64-apple-darwin.tar.gz",
+            },
+            "cmds": [
+                "mv */uvx ~/.local/bin/uvx",
+                "mv */uv ~/.local/bin/uv",
+            ],
+        }
+    ],
+    "eget": [
+        {
+            "sources": {
+                "darwin": "https://github.com/zyedidia/eget/releases/download/v1.3.4/eget-1.3.4-darwin_arm64.tar.gz",
+                "linux": "https://github.com/zyedidia/eget/releases/download/v1.3.4/eget-1.3.4-linux_amd64.tar.gz",
+                "windows": "https://github.com/zyedidia/eget/releases/download/v1.3.4/eget-1.3.4-windows_amd64.zip",
+            },
+            "cmds": [
+                "mv eget*/eget ~/.local/bin/eget",
+                "chmod +x ~/.local/bin/eget",
+            ],
+            "labels": ["eget", "bins"],
+        }
+    ],
+    "golang": [
+        {
+            "sources": {
+                "windows": "https://go.dev/dl/go1.22.1.windows-amd64.zip",
+                "linux": "https://go.dev/dl/go1.22.1.linux-amd64.tar.gz",
+                "darwin": "https://go.dev/dl/go1.22.1.darwin-arm64.tar.gz",
+            },
+            "cmds": ["rm -rf ~/.local/bin/go", "mv go ~/.local/bin/go"],
+            "labels": ["golang"],
+        }
+    ],
+    "fzf": [
+        {
+            "sources": {
+                "linux": "https://github.com/junegunn/fzf/releases/download/0.42.0/fzf-0.42.0-linux_amd64.tar.gz",
+                "darwin": "https://github.com/junegunn/fzf/releases/download/0.42.0/fzf-0.42.0-darwin_arm64.zip",
+            },
+            "cmds": ["mv fzf ~/.local/bin/fzf", "chmod +x ~/.local/bin/fzf"],
+            "labels": [],
+        }
+    ],
+    "yq": [
+        {
+            "sources": {
+                "windows": "https://github.com/mikefarah/yq/releases/download/v4.40.5/yq_windows_amd64.exe",
+                "linux": "https://github.com/mikefarah/yq/releases/download/v4.40.5/yq_linux_amd64",
+                "darwin": "https://github.com/mikefarah/yq/releases/download/v4.40.5/yq_darwin_arm64",
+            },
+            "cmds": ["mv yq* ~/.local/bin/yq", "chmod +x ~/.local/bin/yq"],
+        }
+    ],
+    "delta": [
+        {
+            "sources": {
+                "windows": "https://github.com/dandavison/delta/releases/download/0.17.0/delta-0.17.0-x86_64-pc-windows-msvc.zip",
+                "linux": "https://github.com/dandavison/delta/releases/download/0.17.0/delta-0.17.0-x86_64-unknown-linux-musl.tar.gz",
+                "darwin": "https://github.com/dandavison/delta/releases/download/0.17.0/delta-0.17.0-aarch64-apple-darwin.tar.gz",
+            },
+            "cmds": [
+                "mv delta-*/delta ~/.local/bin/delta",
+                "chmod +x ~/.local/bin/delta",
+            ],
+        }
+    ],
+    "eza": [
+        {
+            "sources": {
+                "windows": "https://github.com/eza-community/eza/releases/download/v0.18.22/eza.exe_x86_64-pc-windows-gnu.tar.gz",
+                "linux": "https://github.com/eza-community/eza/releases/download/v0.18.22/eza_x86_64-unknown-linux-musl.tar.gz",
+            },
+            "cmds": ["mv ./eza ~/.local/bin/eza", "chmod +x ~/.local/bin/eza"],
+        }
+    ],
+    "bat": [
+        {
+            "sources": {
+                "windows": "https://github.com/sharkdp/bat/releases/download/v0.24.0/bat-v0.24.0-x86_64-pc-windows-msvc.zip",
+                "linux": "https://github.com/sharkdp/bat/releases/download/v0.24.0/bat-v0.24.0-x86_64-unknown-linux-musl.tar.gz",
+                "darwin": "https://github.com/sharkdp/bat/releases/download/v0.24.0/bat-v0.24.0-x86_64-apple-darwin.tar.gz",
+            },
+            "cmds": [
+                "mv bat-*/bat ~/.local/bin/bat",
+                "chmod +x ~/.local/bin/bat",
+            ],
+        }
+    ],
+    "zellij": [
+        {
+            "sources": {
+                "linux": "https://github.com/zellij-org/zellij/releases/download/v0.40.0/zellij-x86_64-unknown-linux-musl.tar.gz",
+                "darwin": "https://github.com/zellij-org/zellij/releases/download/v0.40.0/zellij-aarch64-apple-darwin.tar.gz",
+            },
+            "cmds": [
+                "mv zellij ~/.local/bin/zellij",
+                "chmod +x ~/.local/bin/zellij",
+            ],
+        }
+    ],
     "vim": [
         vim_package("https://github.com/junegunn/fzf/archive/refs/tags/0.42.0.tar.gz"),
         vim_package(
@@ -298,8 +326,8 @@ data = {
             "https://github.com/christoomey/vim-tmux-navigator/archive/cdd66d6a37d991bba7997d593586fc51a5b37aa8.tar.gz"
         ),
     ],
-    "lazygit": go_install("github.com/jesseduffield/lazygit@latest"),
-    "lazydocker": go_install("github.com/jesseduffield/lazydocker@latest"),
-    "dive": go_install("github.com/wagoodman/dive@latest"),
-    "glab": go_install("gitlab.com/gitlab-org/cli/cmd/glab@main"),
+    "lazygit": [go_install("github.com/jesseduffield/lazygit@latest")],
+    "lazydocker": [go_install("github.com/jesseduffield/lazydocker@latest")],
+    "dive": [go_install("github.com/wagoodman/dive@latest")],
+    "glab": [go_install("gitlab.com/gitlab-org/cli/cmd/glab@main")],
 }
