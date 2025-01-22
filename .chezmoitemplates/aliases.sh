@@ -8,6 +8,11 @@ if [ -x /usr/bin/dircolors ]; then
     alias egrep='egrep --color=auto'
 fi
 
+if command -v nvim > /dev/null 2>&1; then
+    alias vi="nvim"
+    alias vim="nvim"
+fi
+
 alias mv="mv -i";
 alias cp="cp -i";
 alias rm="rm -i";
