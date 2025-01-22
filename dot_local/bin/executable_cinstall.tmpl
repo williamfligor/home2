@@ -288,6 +288,4 @@ if __name__ == "__main__":
     # If no arguments were given, use all keys
     keys_to_process = requested_keys if requested_keys else data.keys()
 
-    # Process the keys
-    for key in keys_to_process:
-        process(key)
+    process(keys_to_process)
