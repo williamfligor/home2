@@ -205,6 +205,37 @@ def detect_and_extract(archive_path: Path, destination: Path):
     shutil.copy(archive_path, destination / archive_path.name)
 
 
+def download_and_extract(url: str) -> Path:
+    filename = Path(urlparse(url).path).name
+    archive_dest = root / filename
+
+    if not archive_dest.exists():
+        print(f"Downloading {url} to {archive_dest}...", end="", flush=True)
+
+        # Create a request object with the User-Agent
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows; U; Windows NT 5.1; it; rv:1.8.1.11) Gecko/20071127 Firefox/2.0.0.11"
+            },
+        )
+
+        # Open the URL and save the content to a file
+        with urllib.request.urlopen(req) as response:
+            with open(archive_dest, "wb") as out_file:
+                out_file.write(response.read())
+
+        print("Done")
+
+    print(f"Extracting {archive_dest.stem}...")
+
+    # Create a temporary directory
+    destination = Path(tempfile.mkdtemp())
+    detect_and_extract(archive_dest, destination)
+
+    return destination
+
+
 def process_package(package: dict) -> None:
     cmds = package["cmds"]
 
@@ -219,31 +250,7 @@ def process_package(package: dict) -> None:
             url = sources
 
         if url is not None:
-            filename = Path(urlparse(url).path).name
-            archive_dest = root / filename
-
-            if not archive_dest.exists():
-                print(f"Downloading {url} to {archive_dest}...", end="", flush=True)
-
-                # Create a request object with the User-Agent
-                req = urllib.request.Request(
-                    url,
-                    headers={
-                        "User-Agent": "Mozilla/5.0 (Windows; U; Windows NT 5.1; it; rv:1.8.1.11) Gecko/20071127 Firefox/2.0.0.11"
-                    },
-                )
-
-                # Open the URL and save the content to a file
-                with urllib.request.urlopen(req) as response:
-                    with open(archive_dest, "wb") as out_file:
-                        out_file.write(response.read())
-
-                print("Done")
-
-            print(f"Extracting {archive_dest.stem}...")
-            # Create a temporary directory
-            destination = Path(tempfile.mkdtemp())
-            detect_and_extract(archive_dest, destination)
+            destination = download_and_extract(url)
 
             print("Files...")
             for file in destination.rglob("*"):
