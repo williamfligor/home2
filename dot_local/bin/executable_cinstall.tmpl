@@ -5,13 +5,12 @@
 
 from pathlib import Path
 from typing import Tuple
-import sys
 from urllib.parse import urlparse
 import subprocess
 import tarfile
 import zipfile
 import lzma
-import importlib.util
+import json
 import os
 from zipfile import ZipFile, ZipInfo
 import shutil
@@ -22,13 +21,9 @@ import urllib.request
 
 ccd = Path("{{ .chezmoi.config.sourceDir }}")
 
-# Manually import the manifest file
-spec = importlib.util.spec_from_file_location("manifest", ccd / "data" / "manifest.py")
-manifest = importlib.util.module_from_spec(spec)
-sys.modules["manifest"] = manifest
-spec.loader.exec_module(manifest)
-
-data = manifest.data
+# Load the manifest
+with open(ccd / "data" / "manifest.json") as f:
+    data = json.load(f)
 
 # Calculate root directory
 root = Path.home() / ".local" / "share" / "packages"
