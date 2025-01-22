@@ -81,6 +81,15 @@ data = {
         "https://github.com/exelban/stats/releases/download/v2.11.9/Stats.dmg",
         "Stats.app",
     ),
+    "neovim": {
+        "sources": {
+            "linux": "https://github.com/neovim/neovim/releases/download/v0.10.3/nvim-linux64.tar.gz",
+            "darwin": "https://github.com/neovim/neovim/releases/download/v0.10.3/nvim-macos-arm64.tar.gz",
+        },
+        "cmds": [
+            "mv nvim-*/ ~/.local/bin/nvim"
+        ],
+    },
     "ice": {
         "sources": {
             "darwin": "https://github.com/jordanbaird/Ice/releases/download/0.11.0-beta.2/Ice.zip",
@@ -108,13 +117,6 @@ data = {
             "rm -rf ~/Applications/xbar.app",
             "rsync -a xbar.app ~/Applications/",
         ],
-    },
-    "neovim": {
-        "sources": {
-            "windows": "https://github.com/neovim/neovim/releases/download/v0.10.1/nvim-win64.zip",
-            "darwin": "https://github.com/neovim/neovim/releases/download/v0.10.1/nvim-macos-arm64.tar.gz",
-        },
-        "cmds": [],
     },
     "uv": {
         "sources": {
