@@ -30,6 +30,7 @@
                 "darwin": "https://github.com/neovim/neovim/releases/download/v0.10.3/nvim-macos-arm64.tar.gz"
             },
             "cmds": [
+                "rm -rf ~/.local/bin/nvim || true",
                 "mv nvim-*/ ~/.local/bin/nvim"
             ]
         }
