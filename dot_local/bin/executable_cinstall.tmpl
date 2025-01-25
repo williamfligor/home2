@@ -251,8 +251,6 @@ def process_package(package: dict) -> None:
 
             print("Running instructions...")
             run_commands(cmds, destination)
-        else:
-            print(f"URL could not be found for {package}")
     else:
         run_commands(cmds)
 
