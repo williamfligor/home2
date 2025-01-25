@@ -82,23 +82,6 @@
             ]
         }
     ],
-    "eget": [
-        {
-            "sources": {
-                "darwin": "https://github.com/zyedidia/eget/releases/download/v1.3.4/eget-1.3.4-darwin_arm64.tar.gz",
-                "linux": "https://github.com/zyedidia/eget/releases/download/v1.3.4/eget-1.3.4-linux_amd64.tar.gz",
-                "windows": "https://github.com/zyedidia/eget/releases/download/v1.3.4/eget-1.3.4-windows_amd64.zip"
-            },
-            "cmds": [
-                "mv eget*/eget ~/.local/bin/eget",
-                "chmod +x ~/.local/bin/eget"
-            ],
-            "labels": [
-                "eget",
-                "bins"
-            ]
-        }
-    ],
     "golang": [
         {
             "sources": {
