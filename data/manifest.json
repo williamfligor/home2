@@ -431,5 +431,12 @@
                 "~/.local/bin/go/bin/go install gitlab.com/gitlab-org/cli/cmd/glab@main"
             ]
         }
+    ],
+    "rust": [
+        {
+            "cmds": [
+                "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path"
+            ]
+        }
     ]
 }
