@@ -327,7 +327,7 @@
             "cmds": [
                 "rm -rf ~/.zsh/custom/plugins/zsh-syntax-highlighting || true",
                 "mkdir -p ~/.zsh/custom/plugins/zsh-syntax-highlighting",
-                "mv */* ~/.zsh/custom/plugins/zsh-syntax-highlighting"
+                "mv */{.[!.],}* ~/.zsh/custom/plugins/zsh-syntax-highlighting"
             ]
         },
         {
