@@ -318,7 +318,8 @@
             "cmds": [
                 "rm -rf ~/.oh-my-zsh || true",
                 "mkdir -p ~/.oh-my-zsh",
-                "mv */* ~/.oh-my-zsh"
+                "mv */* ~/.oh-my-zsh",
+                "chmod -R g-w,o-w ~/.oh-my-zsh"
             ]
         },
         {
