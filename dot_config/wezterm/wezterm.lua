@@ -39,18 +39,27 @@ config.launch_menu = launch_menu
 ---------------------------------------------------------------------------------
 ------------------------------------- Keys --------------------------------------
 ---------------------------------------------------------------------------------
+config.leader = { key = 'Space', mods = 'CTRL', timeout_milliseconds = 2000 }
 config.keys = {
-    { key = 'L', mods = 'CTRL', action = wezterm.action.ShowDebugOverlay },
+    -- Utility
+    { key = ':', mods = 'LEADER', action = wezterm.action.ActivateCommandPalette },
 
     -- Tab open / close
     { key = 't', mods = 'SUPER', action = wezterm.action.ShowLauncher, },
     { key = 'w', mods = 'SUPER', action = wezterm.action.CloseCurrentTab { confirm = false }, },
 
-    -- Pane Selection
+    -- Pane Control
     { key = 'h', mods = 'SUPER', action = wezterm.action.ActivatePaneDirection 'Left' },
     { key = 'j', mods = 'SUPER', action = wezterm.action.ActivatePaneDirection 'Down' },
     { key = 'k', mods = 'SUPER', action = wezterm.action.ActivatePaneDirection 'Up' },
     { key = 'l', mods = 'SUPER', action = wezterm.action.ActivatePaneDirection 'Right' },
+    { key = 'z', mods = 'LEADER', action = wezterm.action.TogglePaneZoomState },
+    { key = 'v', mods = 'LEADER', action = wezterm.action.SplitVertical { domain = 'CurrentPaneDomain' }, },
+    { key = '"', mods = 'LEADER', action = wezterm.action.SplitHorizontal { domain = 'CurrentPaneDomain' }, },
+    -- TODO look for something like PREFIX+Space in tmux that goes between pane
+    -- organizations of the current tab
+    { key = 'Space', mods = 'LEADER', action = wezterm.action.RotatePanes 'Clockwise' },
+
 }
 
 ---------------------------------------------------------------------------------
