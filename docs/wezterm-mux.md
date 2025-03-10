@@ -12,23 +12,15 @@ step certificate create server.com server.com.crt server.com.key --kty=RSA --pro
 step certificate create $USER client.com.crt client.com.key --kty=RSA --profile leaf --ca ./root_ca.crt --ca-key ./root_ca.key --insecure --no-password --not-after 43800h
 popd
 
-cat <<EOF > ~/.wezterm.lua
-local wezterm = require("wezterm")
-local config = wezterm.config_builder and wezterm.config_builder() or {}
-config.tls_servers = {{
-    bind_address = '0.0.0.0:47777',
-    pem_private_key = '$HOME/.local/share/wezterm/pki/server.com.key',
-    pem_cert = '$HOME/.local/share/wezterm/pki/server.com.crt',
-    pem_ca = '$HOME/.local/share/wezterm/pki/root_ca.crt',
-    pem_root_certs = {'$HOME/.local/share/wezterm/pki/root_ca.crt'},
-}}
-return config
-EOF
-```
-
 **Run on client**
 
 ```bash
 mkdir -p ~/.local/share/wezterm/pki
 scp <SERVER>:.local/share/wezterm/pki/{client.com.key,client.com.crt,root_ca.crt} .local/share/wezterm/pki/
+```
+
+**Run Server**
+
+```bash
+wezterm-mux-server --config-file ~/.config/wezterm/wezterm-mux-server.lua
 ```
