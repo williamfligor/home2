@@ -1,0 +1,135 @@
+#!/bin/bash
+# vi: ft=bash
+set -euo pipefail
+cinstall=~/.local/share/chezmoi/dot_local/bin/executable_cinstall
+
+# Vim plugins
+$cinstall \
+    --url "https://github.com/junegunn/fzf/archive/refs/tags/0.42.0.tar.gz" \
+    --cmd 'rm -rf ~/.vim/pack/junegunn/start/fzf' \
+          'mkdir -p ~/.vim/pack/junegunn/start/' \
+          'mv fzf-* ~/.vim/pack/junegunn/start/fzf'
+
+$cinstall \
+    --url "https://github.com/junegunn/fzf.vim/archive/f3b82091a651a643ef18b220cd3e154d76a54462.tar.gz" \
+    --cmd 'rm -rf ~/.vim/pack/junegunn/start/fzf.vim' \
+          'mkdir -p ~/.vim/pack/junegunn/start/.vim' \
+          'mv fzf.vim-* ~/.vim/pack/junegunn/start/fzf.vim'
+
+$cinstall \
+    --url "https://github.com/liuchengxu/vim-which-key/archive/c0eb7a63e80ed0dc2c91eb8c879b7396a795f775.tar.gz" \
+    --cmd 'rm -rf ~/.vim/pack/liuchengxu/start/vim-which-key' \
+          'mkdir -p ~/.vim/pack/liuchengxu/start/-which-key' \
+          'mv vim-which-key-* ~/.vim/pack/liuchengxu/start/vim-which-key'
+
+$cinstall \
+    --url "https://github.com/kergoth/vim-bitbake/archive/6d4148c3d200265293040a18c2f772340566554b.tar.gz" \
+    --cmd 'rm -rf ~/.vim/pack/kergoth/start/vim-bitbake' \
+          'mkdir -p ~/.vim/pack/kergoth/start/-bitbake' \
+          'mv vim-bitbake-* ~/.vim/pack/kergoth/start/vim-bitbake'
+
+$cinstall \
+    --url "https://github.com/altercation/vim-colors-solarized/archive/528a59f26d12278698bb946f8fb82a63711eec21.tar.gz" \
+    --cmd 'rm -rf ~/.vim/pack/altercation/start/vim-colors-solarized' \
+          'mkdir -p ~/.vim/pack/altercation/start/-colors-solarized' \
+          'mv vim-colors-solarized-* ~/.vim/pack/altercation/start/vim-colors-solarized'
+
+$cinstall \
+    --url "https://github.com/heavenshell/vim-pydocstring/archive/bc710d75262dfbaa820e5564391bf62f6c9b25fd.tar.gz" \
+    --cmd 'rm -rf ~/.vim/pack/heavenshell/start/vim-pydocstring' \
+          'mkdir -p ~/.vim/pack/heavenshell/start/-pydocstring' \
+          'mv vim-pydocstring-* ~/.vim/pack/heavenshell/start/vim-pydocstring'
+
+$cinstall \
+    --url "https://github.com/vim-scripts/DoxygenToolkit.vim/archive/eb7d2b44c52aa6c9695019aeb474e54d606d9854.tar.gz" \
+    --cmd 'rm -rf ~/.vim/pack/vim-scripts/start/DoxygenToolkit.vim' \
+          'mkdir -p ~/.vim/pack/vim-scripts/start/.vim' \
+          'mv DoxygenToolkit.vim-* ~/.vim/pack/vim-scripts/start/DoxygenToolkit.vim'
+
+$cinstall \
+    --url "https://github.com/ervandew/supertab/archive/d80e8e2c1fa08607fa34c0ca5f1b66d8a906c5ef.tar.gz" \
+    --cmd 'rm -rf ~/.vim/pack/ervandew/start/supertab' \
+          'mkdir -p ~/.vim/pack/ervandew/start/' \
+          'mv supertab-* ~/.vim/pack/ervandew/start/supertab'
+
+$cinstall \
+    --url "https://github.com/mbbill/undotree/archive/485f01efde4e22cb1ce547b9e8c9238f36566f21.tar.gz" \
+    --cmd 'rm -rf ~/.vim/pack/mbbill/start/undotree' \
+          'mkdir -p ~/.vim/pack/mbbill/start/' \
+          'mv undotree-* ~/.vim/pack/mbbill/start/undotree'
+
+$cinstall \
+    --url "https://github.com/vim-airline/vim-airline/archive/038e3a6ca59f11b3bb6a94087c1792322d1a1d5c.tar.gz" \
+    --cmd 'rm -rf ~/.vim/pack/vim-airline/start/vim-airline' \
+          'mkdir -p ~/.vim/pack/vim-airline/start/-airline' \
+          'mv vim-airline-* ~/.vim/pack/vim-airline/start/vim-airline'
+
+$cinstall \
+    --url "https://github.com/vim-airline/vim-airline-themes/archive/dd81554c2231e438f6d0e8056ea38fd0e80ac02a.tar.gz" \
+    --cmd 'rm -rf ~/.vim/pack/vim-airline/start/vim-airline-themes' \
+          'mkdir -p ~/.vim/pack/vim-airline/start/-airline-themes' \
+          'mv vim-airline-themes-* ~/.vim/pack/vim-airline/start/vim-airline-themes'
+
+$cinstall \
+    --url "https://github.com/tpope/vim-commentary/archive/3654775824337f466109f00eaf6759760f65be34.tar.gz" \
+    --cmd 'rm -rf ~/.vim/pack/tpope/start/vim-commentary' \
+          'mkdir -p ~/.vim/pack/tpope/start/-commentary' \
+          'mv vim-commentary-* ~/.vim/pack/tpope/start/vim-commentary'
+
+$cinstall \
+    --url "https://github.com/airblade/vim-gitgutter/archive/edb607cc4b329099da825c028c53b1264dbd2350.tar.gz" \
+    --cmd 'rm -rf ~/.vim/pack/airblade/start/vim-gitgutter' \
+          'mkdir -p ~/.vim/pack/airblade/start/-gitgutter' \
+          'mv vim-gitgutter-* ~/.vim/pack/airblade/start/vim-gitgutter'
+
+$cinstall \
+    --url "https://github.com/pangloss/vim-javascript/archive/cf8872405b059428ffbabe0d5f624b496d92e338.tar.gz" \
+    --cmd 'rm -rf ~/.vim/pack/pangloss/start/vim-javascript' \
+          'mkdir -p ~/.vim/pack/pangloss/start/-javascript' \
+          'mv vim-javascript-* ~/.vim/pack/pangloss/start/vim-javascript'
+
+$cinstall \
+    --url "https://github.com/peitalin/vim-jsx-typescript/archive/b099549ffd1810eb6f7979202202406939abb77e.tar.gz" \
+    --cmd 'rm -rf ~/.vim/pack/peitalin/start/vim-jsx-typescript' \
+          'mkdir -p ~/.vim/pack/peitalin/start/-jsx-typescript' \
+          'mv vim-jsx-typescript-* ~/.vim/pack/peitalin/start/vim-jsx-typescript'
+
+$cinstall \
+    --url "https://github.com/preservim/vim-markdown/archive/5d3d1b6cbdc4be0b4c6105c1ab1f769d76d3c68f.tar.gz" \
+    --cmd 'rm -rf ~/.vim/pack/preservim/start/vim-markdown' \
+          'mkdir -p ~/.vim/pack/preservim/start/-markdown' \
+          'mv vim-markdown-* ~/.vim/pack/preservim/start/vim-markdown'
+
+$cinstall \
+    --url "https://github.com/christoomey/vim-tmux-navigator/archive/cdd66d6a37d991bba7997d593586fc51a5b37aa8.tar.gz" \
+    --cmd 'rm -rf ~/.vim/pack/christoomey/start/vim-tmux-navigator' \
+          'mkdir -p ~/.vim/pack/christoomey/start/-tmux-navigator' \
+          'mv vim-tmux-navigator-* ~/.vim/pack/christoomey/start/vim-tmux-navigator'
+
+$cinstall \
+    --url "https://github.com/tpope/vim-fugitive/archive/4a745ea72fa93bb15dd077109afbb3d1809383f2.zip" \
+    --cmd 'rm -rf ~/.vim/pack/tpope/start/vim-fugitive' \
+          'mkdir -p ~/.vim/pack/tpope/start/-fugitive' \
+          'mv vim-fugitive-* ~/.vim/pack/tpope/start/vim-fugitive'
+
+# Neovim plugins
+$cinstall \
+    --url "https://github.com/neovim/nvim-lspconfig/archive/40f120c10ea4b87311175539a183c3b75eab95a3.zip" \
+    --cmd 'rm -rf ~/.config/nvim/pack/neovim/start/nvim-lspconfig' \
+          'mkdir -p ~/.config/nvim/pack/neovim/start/-lspconfig' \
+          'mv nvim-lspconfig-* ~/.config/nvim/pack/neovim/start/nvim-lspconfig'
+
+$cinstall \
+    --url "https://github.com/ms-jpq/coq_nvim/archive/d83bc18d044cfcd65e91dc49740a353546bc143b.zip" \
+    --cmd 'rm -rf ~/.config/nvim/pack/ms-jpq/start/coq_nvim' \
+          'mkdir -p ~/.config/nvim/pack/ms-jpq/start/' \ \
+          'mv coq_nvim-* ~/.config/nvim/pack/ms-jpq/start/coq_nvim' \
+          'cd ~/.config/nvim/pack/ms-jpq/start/coq_nvim' \
+          'PYTHONSAFEPATH="1" PYTHONPATH=$(pwd) python3 -s -u -m coq deps'
+
+$cinstall \
+    --url "https://github.com/ms-jpq/coq.artifacts/archive/ef5f21d638ccc456cfa5b8d0ab37093cefe48c8b.zip" \
+    --cmd 'rm -rf ~/.config/nvim/pack/ms-jpq/start/coq.artifacts' \
+          'mkdir -p ~/.config/nvim/pack/ms-jpq/start/.artifacts' \
+          'mv coq.artifacts-* ~/.config/nvim/pack/ms-jpq/start/coq.artifacts'
+

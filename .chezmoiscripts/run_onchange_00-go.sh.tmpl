@@ -1,0 +1,15 @@
+#!/bin/bash
+# vi: ft=bash
+set -euo pipefail
+cinstall=~/.local/share/chezmoi/dot_local/bin/executable_cinstall
+
+# Go installation
+{{ $url := dict
+  "windows" "https://go.dev/dl/go1.22.1.windows-amd64.zip"
+  "linux" "https://go.dev/dl/go1.22.1.linux-amd64.tar.gz"
+  "darwin" "https://go.dev/dl/go1.22.1.darwin-arm64.tar.gz"
+}}
+$cinstall \
+    --url "{{ get $url .chezmoi.os }}" \
+    --cmd 'rm -rf ~/.local/bin/go' \
+          'mv go ~/.local/bin/go'

@@ -4,6 +4,7 @@
 from pathlib import Path
 from typing import Tuple
 from urllib.parse import urlparse
+import platform
 import subprocess
 import tarfile
 import zipfile
@@ -16,12 +17,6 @@ from contextlib import contextmanager
 
 import tempfile
 import urllib.request
-
-ccd = Path("{{ .chezmoi.config.sourceDir }}")
-
-# Load the manifest
-with open(ccd / "data" / "manifest.json") as f:
-    data = json.load(f)
 
 # Calculate root directory
 root = Path.home() / ".local" / "share" / "packages"
@@ -229,63 +224,28 @@ def download_and_extract(url: str) -> Path:
     return destination
 
 
-def process_package(package: dict) -> None:
-    cmds = package["cmds"]
+def process_package(url: str, cmds: list[str]) -> None:
+    if url is not None:
+        destination = download_and_extract(url)
 
-    if "sources" in package:
-        sources = package["sources"]
+        print("Files...")
+        for file in destination.rglob("*"):
+            print(f"    - {file}")
 
-        url: None | str = None
-        if isinstance(sources, dict):
-            if "{{ .chezmoi.os }}" in sources:
-                url = sources["{{ .chezmoi.os }}"]
-        else:
-            url = sources
-
-        if url is not None:
-            destination = download_and_extract(url)
-
-            print("Files...")
-            for file in destination.rglob("*"):
-                print(f"    - {file}")
-
-            print("Running instructions...")
-            run_commands(cmds, destination)
+        print("Running instructions...")
+        run_commands(cmds, destination)
     else:
         run_commands(cmds)
 
 
-def process(keys: list[str]) -> None:
-    for key, package in data.items():
-        if key not in keys:
-            continue
-
-        for x in package:
-            process_package(x)
-
-        print("Done")
-
-
 if __name__ == "__main__":
     import argparse
+    import sys
 
     parser = argparse.ArgumentParser(description="Install from manifest")
-
-    # Add an argument for each key in the data dictionary
-    for key in data.keys():
-        parser.add_argument(f"--{key}", action="store_true", help=f"Install {key}")
-
+    parser.add_argument('--url', type=str)
+    parser.add_argument('--cmd', nargs='+', type=str)
     args = parser.parse_args()
 
-    # Convert args namespace to dictionary and get keys that were set to True
-    args_dict = vars(args)
-    requested_keys = [key for key in args_dict if args_dict[key]]
+    process_package(args.url, args.cmd)
 
-    # If no arguments were given, use all keys
-    keys_to_process = requested_keys if requested_keys else data.keys()
-
-    process(keys_to_process)
-
-{{ if eq .chezmoi.os "darwin" }}
-    print("Run `unquarantine` to un-quarantine executables")
-{{ end -}}

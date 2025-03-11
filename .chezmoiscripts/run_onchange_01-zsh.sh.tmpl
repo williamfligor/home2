@@ -1,0 +1,32 @@
+#!/bin/bash
+# vi: ft=bash
+set -euo pipefail
+cinstall=~/.local/share/chezmoi/dot_local/bin/executable_cinstall
+
+# Oh My Zsh
+$cinstall \
+    --url "https://github.com/ohmyzsh/ohmyzsh/archive/32d4389aa6e896b27d9786d142a5c44163104056.zip" \
+    --cmd 'rm -rf ~/.oh-my-zsh' \
+          'mv ohmyzsh-* ~/.oh-my-zsh'
+
+# Zsh plugins
+$cinstall \
+    --url "https://github.com/zsh-users/zsh-syntax-highlighting/archive/754cefe0181a7acd42fdcb357a67d0217291ac47.tar.gz" \
+    --cmd 'rm -rf ~/.zsh/custom/plugins/zsh-syntax-highlighting' \
+          'mv zsh-syntax-highlighting-* ~/.zsh/custom/plugins/zsh-syntax-highlighting'
+
+$cinstall \
+    --url "https://github.com/sineto/vi-mode/archive/2f84dd922cdcceff62ef40ea1a5495c30dcbb280.tar.gz" \
+    --cmd 'rm -rf ~/.zsh/custom/plugins/vi-mode' \
+          'mv vi-mode-* ~/.zsh/custom/plugins/vi-mode'
+
+$cinstall \
+    --url "https://github.com/MichaelAquilina/zsh-you-should-use/archive/refs/tags/1.8.0.tar.gz" \
+    --cmd 'rm -rf ~/.zsh/custom/plugins/zsh-you-should-use' \
+          'mv zsh-you-should-use-* ~/.zsh/custom/plugins/zsh-you-should-use'
+
+$cinstall \
+    --url "https://github.com/romkatv/powerlevel10k/archive/2aa16c54314f175e4f34fdd7fa1bdb03f1797c6a.tar.gz" \
+    --cmd 'rm -rf ~/.zsh/custom/themes/powerlevel10k' \
+          'mv powerlevel10k-* ~/.zsh/custom/themes/powerlevel10k'
+

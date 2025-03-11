@@ -1,0 +1,37 @@
+#!/bin/bash
+# vi: ft=bash
+set -euo pipefail
+cinstall=~/.local/share/chezmoi/dot_local/bin/executable_cinstall
+
+mkdir -p ~/.tmux/pack/
+
+# Tmux plugins
+$cinstall \
+    --url "https://github.com/jimeh/tmux-themepack/archive/7c59902f64dcd7ea356e891274b21144d1ea5948.tar.gz" \
+    --cmd 'rm -rf ~/.tmux/pack/tmux-themepack' \
+          'mv tmux-themepack-* ~/.tmux/pack/tmux-themepack'
+
+$cinstall \
+    --url "https://github.com/tmux-plugins/tmux-pain-control/archive/32b760f6652f2305dfef0acd444afc311cf5c077.tar.gz" \
+    --cmd 'rm -rf ~/.tmux/pack/tmux-pain-control' \
+          'mv tmux-pain-control-* ~/.tmux/pack/tmux-pain-control'
+
+$cinstall \
+    --url "https://github.com/tmux-plugins/tmux-yank/archive/1b1a436e19f095ae8f825243dbe29800a8acd25c.tar.gz" \
+    --cmd 'rm -rf ~/.tmux/pack/tmux-yank' \
+          'mv tmux-yank-* ~/.tmux/pack/tmux-yank'
+
+$cinstall \
+    --url "https://github.com/tmux-plugins/tmux-copycat/archive/77ca3aab2aed8ede3e2b941079b1c92dd221cf5f.tar.gz" \
+    --cmd 'rm -rf ~/.tmux/pack/tmux-copycat' \
+          'mv tmux-copycat-* ~/.tmux/pack/tmux-copycat'
+
+$cinstall \
+    --url "https://github.com/tmux-plugins/tmux-sensible/archive/25cb91f42d020f675bb0a2ce3fbd3a5d96119efa.tar.gz" \
+    --cmd 'rm -rf ~/.tmux/pack/tmux-sensible' \
+          'mv tmux-sensible-* ~/.tmux/pack/tmux-sensible'
+
+$cinstall \
+    --url "https://github.com/christoomey/vim-tmux-navigator/archive/cdd66d6a37d991bba7997d593586fc51a5b37aa8.tar.gz" \
+    --cmd 'rm -rf ~/.tmux/pack/vim-tmux-navigator' \
+          'mv vim-tmux-navigator-* ~/.tmux/pack/vim-tmux-navigator'
