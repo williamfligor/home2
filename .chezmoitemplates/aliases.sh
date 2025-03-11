@@ -30,10 +30,3 @@ alias speedtest="wget -O /dev/null http://cachefly.cachefly.net/100mb.test";
 alias ag="rg"
 {{ end -}}
 
-function ccd {
-    cd $(chezmoi source-path)
-}
-
-function capply {
-    chezmoi apply --exclude=encrypted
-}
