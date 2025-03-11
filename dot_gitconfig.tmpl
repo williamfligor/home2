@@ -6,3 +6,8 @@
 	excludesFile = {{ .chezmoi.homeDir }}/.config/gitignore
 [delta]
     light = true
+
+{{- if eq .chezmoi.os "darwin" }}
+[credential]
+    helper = osxkeychain
+{{- end }}
