@@ -25,8 +25,5 @@ alias gs="git status"
 alias lg="lazygit"
 
 alias speedtest="wget -O /dev/null http://cachefly.cachefly.net/100mb.test";
-
-{{ if eq .chezmoi.os "darwin" -}}
 alias ag="rg"
-{{ end -}}
 
