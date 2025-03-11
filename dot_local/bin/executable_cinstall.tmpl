@@ -285,3 +285,7 @@ if __name__ == "__main__":
     keys_to_process = requested_keys if requested_keys else data.keys()
 
     process(keys_to_process)
+
+{{ if eq .chezmoi.os "darwin" }}
+    print("Run `xattr -r -d com.apple.quarantine /path/to/xyz.app` to un-quarantine executables")
+{{ end -}}
