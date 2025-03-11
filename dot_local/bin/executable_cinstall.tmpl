@@ -287,5 +287,5 @@ if __name__ == "__main__":
     process(keys_to_process)
 
 {{ if eq .chezmoi.os "darwin" }}
-    print("Run `xattr -r -d com.apple.quarantine /path/to/xyz.app` to un-quarantine executables")
+    print("Run `unquarantine` to un-quarantine executables")
 {{ end -}}
