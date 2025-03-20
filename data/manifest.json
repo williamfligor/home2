@@ -439,5 +439,26 @@
                 "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path"
             ]
         }
+    ],
+    "wezterm": [
+        {
+            "sources": {
+                "darwin": "https://github.com/wezterm/wezterm/releases/download/nightly/WezTerm-macos-nightly.zip",
+                "linux": "https://github.com/wezterm/wezterm/releases/download/nightly/wezterm-nightly.Ubuntu22.04.tar.xz",
+                "windows": "https://github.com/wezterm/wezterm/releases/download/nightly/WezTerm-windows-nightly.zip"
+            },
+            "cmds": {
+                "darwin": [
+                    "mkdir -p ~/Applications",
+                    "rm -rf \"~/Applications/WezTerm.app/\"",
+                    "cd WezTerm*",
+                    "find .",
+                    "rsync -a WezTerm.app ~/Applications/"
+                ],
+                "linux": [
+                    "cp wezterm/usr/bin/* ~/.local/bin/"
+                ]
+            }
+        }
     ]
 }
