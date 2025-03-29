@@ -11,6 +11,18 @@
             ]
         }
     ],
+    "rectangle": [
+        {
+            "sources": {
+                "darwin": "https://github.com/rxhanson/Rectangle/releases/download/v0.86/Rectangle0.86.dmg"
+            },
+            "cmds": [
+                "mkdir -p ~/Applications",
+                "rm -rf \"~/Applications/Rectangle.app/\"",
+                "rsync -a \"Rectangle.app\" ~/Applications/"
+            ]
+        }
+    ],
     "stats": [
         {
             "sources": {
