@@ -440,6 +440,13 @@
             ]
         }
     ],
+    "fd": [
+        {
+            "cmds": [
+                "~/.cargo/bin/cargo install fd-find"
+            ]
+        }
+    ],
     "wezterm": [
         {
             "sources": {
