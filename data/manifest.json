@@ -314,7 +314,7 @@
     ],
     "zsh": [
         {
-            "sources": "https://github.com/ohmyzsh/ohmyzsh/archive/32d4389aa6e896b27d9786d142a5c44163104056.tar.gz",
+            "sources": "https://github.com/ohmyzsh/ohmyzsh/archive/32d4389aa6e896b27d9786d142a5c44163104056.zip",
             "cmds": [
                 "rm -rf ~/.oh-my-zsh || true",
                 "mkdir -p ~/.oh-my-zsh",
