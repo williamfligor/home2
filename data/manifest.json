@@ -7,7 +7,7 @@
             "cmds": [
                 "mkdir -p ~/Applications",
                 "rm -rf \"~/Applications/Ghostty.app/\"",
-                "rsync -a \"Ghostty.app/\" ~/Applications/"
+                "rsync -a \"Ghostty.app\" ~/Applications/"
             ]
         }
     ],
@@ -19,7 +19,7 @@
             "cmds": [
                 "mkdir -p ~/Applications",
                 "rm -rf \"~/Applications/Stats.app/\"",
-                "rsync -a \"Stats.app/\" ~/Applications/"
+                "rsync -a \"Stats.app\" ~/Applications/"
             ]
         }
     ],
