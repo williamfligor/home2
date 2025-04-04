@@ -322,6 +322,39 @@
                 "mkdir -p ~/.vim/pack/christoomey/start/vim-tmux-navigator",
                 "mv */* ~/.vim/pack/christoomey/start/vim-tmux-navigator"
             ]
+        },
+        {
+            "sources": "https://github.com/neovim/nvim-lspconfig/archive/40f120c10ea4b87311175539a183c3b75eab95a3.zip",
+            "cmds": [
+                "rm -rf ~/.config/nvim/pack/neovim/start/nvim-lspconfig || true",
+                "mkdir -p ~/.config/nvim/pack/neovim/start/nvim-lspconfig",
+                "mv */* ~/.config/nvim/pack/neovim/start/nvim-lspconfig"
+            ]
+        },
+        {
+            "sources": "https://github.com/ms-jpq/coq_nvim/archive/d83bc18d044cfcd65e91dc49740a353546bc143b.zip",
+            "cmds": [
+                "rm -rf ~/.config/nvim/pack/ms-jpq/start/coq_nvim || true",
+                "mkdir -p ~/.config/nvim/pack/ms-jpq/start/coq_nvim",
+                "mv */* ~/.config/nvim/pack/ms-jpq/start/coq_nvim"
+            ]
+        },
+        {
+            "sources": "https://github.com/ms-jpq/coq.artifacts/archive/ef5f21d638ccc456cfa5b8d0ab37093cefe48c8b.zip",
+            "cmds": [
+                "rm -rf ~/.config/nvim/pack/ms-jpq/start/coq.artifacts || true",
+                "mkdir -p ~/.config/nvim/pack/ms-jpq/start/coq.artifacts",
+                "mv */* ~/.config/nvim/pack/ms-jpq/start/coq.artifacts"
+            ]
+        },
+        {
+            "cmds": [
+                "python3 -m venv ~/pyenvs/py3nvim",
+                ". ~/pyenvs/py3nvim/bin/activate",
+                "pip install pynvim",
+                "pip install 'python-lsp-server[yapf]'",
+                "pip install -r ~/.config/nvim/pack/ms-jpq/start/coq_nvim/requirements.txt"
+            ]
         }
     ],
     "zsh": [
