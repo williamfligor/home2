@@ -55,3 +55,10 @@ export PATH=$PATH:/c/Program\ Files/Oracle/VirtualBox
 
 # ------------------------ Key Bindings --------------------------------
 bindkey -M vicmd '^[' undefined-key
+
+# ------------------------ Other --------------------------------
+# If zoxide exists load it
+if command -v zoxide &> /dev/null; then
+    eval "$(zoxide init zsh)"
+fi
+

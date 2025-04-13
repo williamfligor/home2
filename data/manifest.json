@@ -478,6 +478,13 @@
             ]
         }
     ],
+    "jid": [
+        {
+            "cmds": [
+                "~/.local/bin/go/bin/go install github.com/simeji/jid/cmd/jid@latest"
+            ]
+        }
+    ],
     "rust": [
         {
             "cmds": [
@@ -489,6 +496,21 @@
         {
             "cmds": [
                 "~/.cargo/bin/cargo install fd-find"
+            ]
+        }
+    ],
+    "zoxide": [
+        {
+            "cmds": [
+                "~/.cargo/bin/cargo install zoxide --locked"
+            ]
+        }
+    ],
+    "navi": [
+        {
+            "cmds": [
+                "~/.cargo/bin/cargo install navi --locked",
+                "~/.cargo/bin/navi repo add https://github.com/denisidoro/cheats"
             ]
         }
     ],
