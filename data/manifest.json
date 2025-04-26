@@ -324,6 +324,14 @@
             ]
         },
         {
+            "sources": "https://github.com/tpope/vim-fugitive/archive/4a745ea72fa93bb15dd077109afbb3d1809383f2.zip",
+            "cmds": [
+                "rm -rf ~/.vim/pack/tpope/start/vim-fugitive || true",
+                "mkdir -p ~/.vim/pack/tpope/start/vim-fugitive",
+                "mv */* ~/.vim/pack/tpope/start/vim-fugitive"
+            ]
+        },
+        {
             "sources": "https://github.com/neovim/nvim-lspconfig/archive/40f120c10ea4b87311175539a183c3b75eab95a3.zip",
             "cmds": [
                 "rm -rf ~/.config/nvim/pack/neovim/start/nvim-lspconfig || true",
