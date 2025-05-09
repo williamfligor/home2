@@ -3,11 +3,10 @@
 set -euo pipefail
 cinstall=~/.local/share/chezmoi/dot_local/bin/executable_cinstall
 
-# UV installation
 {{ $uv_url := dict
-  "linux" "https://github.com/astral-sh/uv/releases/download/0.5.21/uv-x86_64-unknown-linux-musl.tar.gz"
-  "windows" "https://github.com/astral-sh/uv/releases/download/0.5.21/uv-x86_64-pc-windows-msvc.zip"
-  "darwin" "https://github.com/astral-sh/uv/releases/download/0.5.21/uv-aarch64-apple-darwin.tar.gz"
+  "linux" ( gitHubLatestReleaseAssetURL "astral-sh/uv" "uv-x86_64-unknown-linux-musl.tar.gz" )
+  "windows" ( gitHubLatestReleaseAssetURL "astral-sh/uv" "uv-x86_64-pc-windows-msvc.zip" )
+  "darwin" ( gitHubLatestReleaseAssetURL "astral-sh/uv" "uv-aarch64-apple-darwin.tar.gz" )
 }}
 $cinstall \
     --url "{{ get $uv_url .chezmoi.os }}" \

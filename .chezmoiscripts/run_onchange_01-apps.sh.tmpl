@@ -25,8 +25,8 @@ $cinstall \
 
 # Neovim
 {{ $nvim_url := dict
-  "darwin" "https://github.com/neovim/neovim/releases/download/v0.10.3/nvim-macos-arm64.tar.gz"
-  "linux" "https://github.com/neovim/neovim/releases/download/v0.10.3/nvim-linux64.tar.gz"
+  "darwin" ( gitHubLatestReleaseAssetURL "neovim/neovim" "nvim-macos-arm64.tar.gz" )
+  "linux" ( gitHubLatestReleaseAssetURL "neovim/neovim" (printf "nvim-%s-%s.tar.gz" .chezmoi.os .chezmoi.arch) )
 }}
 $cinstall \
     --url "{{ get $nvim_url .chezmoi.os }}" \
@@ -52,15 +52,21 @@ $cinstall \
 # WezTerm
 {{ if eq .chezmoi.os "darwin" }}
 $cinstall \
-    --url "https://github.com/wezterm/wezterm/releases/download/nightly/WezTerm-macos-nightly.zip" \
+    --url "{{ gitHubReleaseAssetURL "wezterm/wezterm" "nightly" "WezTerm-macos-nightly.zip" }}" \
     --cmd 'rm -rf ~/Applications/WezTerm.app/' \
           'cd WezTerm*' \
           'rsync -a WezTerm.app ~/Applications/'
-{{ else }}
+{{ else if eq .chezmoi.os "windows" }}
 $cinstall \
-    --url "{{ if eq .chezmoi.os "windows" }}https://github.com/wezterm/wezterm/releases/download/nightly/WezTerm-windows-nightly.zip{{ else }}https://github.com/wezterm/wezterm/releases/download/nightly/wezterm-nightly.Ubuntu22.04.tar.xz{{ end }}" \
+    --url "{{ gitHubReleaseAssetURL "wezterm/wezterm" "nightly" "WezTerm-windows-nightly.zip" }}" \
     --cmd 'rm -rf ~/.local/bin/wezterm' \
           'mv wezterm ~/.local/bin/wezterm'
+{{ else }}
+$cinstall \
+    --url "{{ gitHubReleaseAssetURL "wezterm/wezterm" "nightly" "wezterm-nightly.Ubuntu22.04.tar.xz" }}" \
+    --cmd 'rm -rf ~/.local/bin/wezterm' \
+          'mv wezterm ~/.local/bin/wezterm'
+          
 {{ end }}
 
 # xbar (macOS only)

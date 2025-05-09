@@ -228,18 +228,15 @@ def download_and_extract(url: str) -> Path:
 
 
 def process_package(url: str, cmds: list[str]) -> None:
-    if url is not None:
-        destination = download_and_extract(url)
+    destination = download_and_extract(url)
 
-        if os.environ.get("CINSTALL_DEBUG"):
-            print("Files...")
-            for file in destination.rglob("*"):
-                print(f"    - {file}")
+    if os.environ.get("CINSTALL_DEBUG"):
+        print("Files...")
+        for file in destination.rglob("*"):
+            print(f"    - {file}")
 
-        print("Running instructions...")
-        run_commands(cmds, destination)
-    else:
-        run_commands(cmds)
+    print("Running instructions...")
+    run_commands(cmds, destination)
 
 
 if __name__ == "__main__":
@@ -250,6 +247,9 @@ if __name__ == "__main__":
     parser.add_argument('--url', type=str)
     parser.add_argument('--cmd', nargs='+', type=str)
     args = parser.parse_args()
+
+    if not args.url:
+        raise Exception("URL must be provided")
 
     process_package(args.url, args.cmd)
 

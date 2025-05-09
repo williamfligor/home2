@@ -3,14 +3,8 @@
 set -euo pipefail
 cinstall=~/.local/share/chezmoi/dot_local/bin/executable_cinstall
 
-# UV installation
-{{ $fzf_url := dict
-  "windows" "https://github.com/mikefarah/yq/releases/download/v4.40.5/yq_windows_amd64.exe"
-  "linux" "https://github.com/mikefarah/yq/releases/download/v4.40.5/yq_linux_amd64"
-  "darwin" "https://github.com/mikefarah/yq/releases/download/v4.40.5/yq_darwin_arm64"
-}}
 $cinstall \
-    --url "{{ get $fzf_url .chezmoi.os }}" \
-    --cmd 'mv yq* ~/.local/bin/yq' \
+    --url "{{ gitHubLatestReleaseAssetURL "mikefarah/yq" (printf "yq_%s_%s.tar.gz" .chezmoi.os .chezmoi.arch) }}" \
+    --cmd 'mv yq_* ~/.local/bin/yq' \
           'chmod +x ~/.local/bin/yq' \
 
