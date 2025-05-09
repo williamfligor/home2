@@ -2,6 +2,7 @@
 /README.md
 /bins/files/*
 /requirements.txt
+/test.sh
 
 **/*.zwc
 
