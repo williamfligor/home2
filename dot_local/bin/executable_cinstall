@@ -231,9 +231,10 @@ def process_package(url: str, cmds: list[str]) -> None:
     if url is not None:
         destination = download_and_extract(url)
 
-        print("Files...")
-        for file in destination.rglob("*"):
-            print(f"    - {file}")
+        if os.environ.get("CINSTALL_DEBUG"):
+            print("Files...")
+            for file in destination.rglob("*"):
+                print(f"    - {file}")
 
         print("Running instructions...")
         run_commands(cmds, destination)
