@@ -29,11 +29,4 @@ fi
 git config --global user.email "williamtfligor@gmail.com"
 git config --global user.name "William Fligor"
 
-# Fixes for gopass gpg keys
-export GPG_TTY=$(tty)
-if command -v gpg-connect-agent &> /dev/null
-then
-    gpg-connect-agent updatestartuptty /bye
-fi
-
 export PATH="$HOME/.local/bin:$PATH"
