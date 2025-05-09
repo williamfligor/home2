@@ -1,0 +1,78 @@
+#!/bin/bash
+# vi: ft=bash
+set -euo pipefail
+cinstall=~/.local/share/chezmoi/dot_local/bin/executable_cinstall
+
+{{ if eq .chezmoi.os "darwin" }}
+mkdir -p ~/Applications
+{{ end }}
+
+# Ghostty (macOS only)
+{{ if eq .chezmoi.os "darwin" }}
+$cinstall \
+    --url "https://release.files.ghostty.org/1.0.1/Ghostty.dmg" \
+    --cmd 'rm -rf ~/Applications/Ghostty.app/' \
+          'rsync -a Ghostty.app ~/Applications/'
+{{ end }}
+
+# Ice app (macOS only)
+{{ if eq .chezmoi.os "darwin" }}
+$cinstall \
+    --url "{{ gitHubLatestReleaseAssetURL "jordanbaird/Ice" "Ice.zip" }}" \
+    --cmd 'rm -rf ~/Applications/Ice.app/' \
+          'rsync -a Ice.app ~/Applications/'
+{{ end }}
+
+# Neovim
+{{ $nvim_url := dict
+  "darwin" ( gitHubLatestReleaseAssetURL "neovim/neovim" "nvim-macos-arm64.tar.gz" )
+  "linux" ( gitHubLatestReleaseAssetURL "neovim/neovim" (printf "nvim-%s-%s.tar.gz" .chezmoi.os .chezmoi.arch) )
+}}
+$cinstall \
+    --url "{{ get $nvim_url .chezmoi.os }}" \
+    --cmd 'rm -rf ~/.local/bin/nvim' \
+          'mv nvim-*/ ~/.local/bin/nvim'
+
+# Rectangle (macOS only)
+{{ if eq .chezmoi.os "darwin" }}
+$cinstall \
+    --url "{{ gitHubLatestReleaseAssetURL "rxhanson/Rectangle" "Rectangle*.dmg" }}" \
+    --cmd 'rm -rf ~/Applications/Rectangle.app/' \
+          'rsync -a Rectangle.app ~/Applications/'
+{{ end }}
+
+# Stats (macOS only)
+{{ if eq .chezmoi.os "darwin" }}
+$cinstall \
+    --url "{{ gitHubLatestReleaseAssetURL "exelban/stats" "Stats.dmg" }}" \
+    --cmd 'rm -rf ~/Applications/Stats.app/' \
+          'rsync -a Stats.app ~/Applications/'
+{{ end }}
+
+# WezTerm
+{{ if eq .chezmoi.os "darwin" }}
+$cinstall \
+    --url "{{ gitHubReleaseAssetURL "wezterm/wezterm" "nightly" "WezTerm-macos-nightly.zip" }}" \
+    --cmd 'rm -rf ~/Applications/WezTerm.app/' \
+          'cd WezTerm*' \
+          'rsync -a WezTerm.app ~/Applications/'
+{{ else if eq .chezmoi.os "windows" }}
+$cinstall \
+    --url "{{ gitHubReleaseAssetURL "wezterm/wezterm" "nightly" "WezTerm-windows-nightly.zip" }}" \
+    --cmd 'rm -rf ~/.local/bin/wezterm' \
+          'mv wezterm ~/.local/bin/wezterm'
+{{ else }}
+$cinstall \
+    --url "{{ gitHubReleaseAssetURL "wezterm/wezterm" "nightly" "wezterm-nightly.Ubuntu22.04.tar.xz" }}" \
+    --cmd 'rm -rf ~/.local/bin/wezterm' \
+          'mv wezterm ~/.local/bin/wezterm'
+          
+{{ end }}
+
+# xbar (macOS only)
+{{ if eq .chezmoi.os "darwin" }}
+$cinstall \
+    --url "{{ gitHubLatestReleaseAssetURL "matryer/xbar" "xbar*.zip" }}" \
+    --cmd 'rm -rf ~/Applications/xbar.app/' \
+          'rsync -a xbar.app ~/Applications/'
+{{ end }}

@@ -1,0 +1,15 @@
+#!/bin/bash
+# vi: ft=bash
+set -euo pipefail
+cinstall=~/.local/share/chezmoi/dot_local/bin/executable_cinstall
+
+{{ $uv_url := dict
+  "linux" ( gitHubLatestReleaseAssetURL "astral-sh/uv" "uv-x86_64-unknown-linux-musl.tar.gz" )
+  "windows" ( gitHubLatestReleaseAssetURL "astral-sh/uv" "uv-x86_64-pc-windows-msvc.zip" )
+  "darwin" ( gitHubLatestReleaseAssetURL "astral-sh/uv" "uv-aarch64-apple-darwin.tar.gz" )
+}}
+$cinstall \
+    --url "{{ get $uv_url .chezmoi.os }}" \
+    --cmd 'mv */uvx ~/.local/bin/uvx' \
+          'mv */uv ~/.local/bin/uv' \
+

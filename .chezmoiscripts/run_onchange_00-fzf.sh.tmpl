@@ -1,0 +1,10 @@
+#!/bin/bash
+# vi: ft=bash
+set -euo pipefail
+cinstall=~/.local/share/chezmoi/dot_local/bin/executable_cinstall
+
+$cinstall \
+    --url "{{ gitHubLatestReleaseAssetURL "junegunn/fzf" (printf "fzf-*-%s_%s.tar.gz" .chezmoi.os .chezmoi.arch) }}" \
+    --cmd 'mv fzf ~/.local/bin/fzf' \
+          'chmod +x ~/.local/bin/fzf' \
+

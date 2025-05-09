@@ -1,0 +1,10 @@
+#!/bin/bash
+# vi: ft=bash
+set -euo pipefail
+cinstall=~/.local/share/chezmoi/dot_local/bin/executable_cinstall
+
+$cinstall \
+    --url "{{ gitHubLatestReleaseAssetURL "mikefarah/yq" (printf "yq_%s_%s.tar.gz" .chezmoi.os .chezmoi.arch) }}" \
+    --cmd 'mv yq_* ~/.local/bin/yq' \
+          'chmod +x ~/.local/bin/yq' \
+

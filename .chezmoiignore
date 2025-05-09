@@ -2,3 +2,9 @@
 /README.md
 /bins/files/*
 /requirements.txt
+/test.sh
+
+**/*.zwc
+
+.config/nvim/pack/ms-jpq/start/coq_nvim/.vars
+.oh-my-zsh/cache/

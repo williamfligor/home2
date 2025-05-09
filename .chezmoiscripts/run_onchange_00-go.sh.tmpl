@@ -1,0 +1,9 @@
+#!/bin/bash
+# vi: ft=bash
+set -euo pipefail
+cinstall=~/.local/share/chezmoi/dot_local/bin/executable_cinstall
+
+$cinstall \
+    --url "{{ printf "https://go.dev/dl/go1.24.3.%s-%s.tar.gz" .chezmoi.os .chezmoi.arch }}" \
+    --cmd 'rm -rf ~/.local/bin/go' \
+          'mv go ~/.local/bin/go'
