@@ -22,6 +22,9 @@ import urllib.request
 root = Path.home() / ".local" / "share" / "packages"
 root.mkdir(exist_ok=True, parents=True)
 
+# Ensure install directories exist
+(Path.home() / ".local" / "bin").mkdir(exist_ok=True, parents=True)
+
 
 def run_commands(commands, cwd=None):
     with tempfile.NamedTemporaryFile(mode="w", delete=True) as f:
