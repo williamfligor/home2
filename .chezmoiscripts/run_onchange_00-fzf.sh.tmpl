@@ -5,8 +5,8 @@ cinstall=~/.local/share/chezmoi/dot_local/bin/executable_cinstall
 
 # UV installation
 {{ $fzf_url := dict
-  "linux" "https://github.com/junegunn/fzf/releases/download/0.42.0/fzf-0.42.0-linux_amd64.tar.gz"
-  "darwin" "https://github.com/junegunn/fzf/releases/download/0.42.0/fzf-0.42.0-darwin_arm64.zip"
+  "linux" "https://github.com/junegunn/fzf/releases/download/v0.62.0/fzf-0.62.0-linux_amd64.tar.gz"
+  "darwin" "https://github.com/junegunn/fzf/releases/download/v0.62.0/fzf-0.62.0-darwin_arm64.tar.gz"
 }}
 $cinstall \
     --url "{{ get $fzf_url .chezmoi.os }}" \
