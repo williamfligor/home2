@@ -25,11 +25,12 @@ $cinstall \
 
 # Neovim
 {{ $nvim_url := dict
-  "darwin" ( gitHubLatestReleaseAssetURL "neovim/neovim" "nvim-macos-arm64.tar.gz" )
-  "linux" ( gitHubLatestReleaseAssetURL "neovim/neovim" (printf "nvim-%s-%s.tar.gz" .chezmoi.os .chezmoi.arch) )
+  "darwin-arm64" ( gitHubLatestReleaseAssetURL "neovim/neovim" "nvim-macos-arm64.tar.gz" )
+  "linux-arm64" ( gitHubLatestReleaseAssetURL "neovim/neovim" "nvim-linux-arm64.tar.gz" )
+  "linux-amd64" ( gitHubLatestReleaseAssetURL "neovim/neovim" "nvim-linux-x86_64.tar.gz" )
 }}
 $cinstall \
-    --url "{{ get $nvim_url .chezmoi.os }}" \
+    --url "{{ get $nvim_url ( printf "%s-%s" .chezmoi.os .chezmoi.arch ) }}" \
     --cmd 'rm -rf ~/.local/bin/nvim' \
           'mv nvim-*/ ~/.local/bin/nvim'
 
