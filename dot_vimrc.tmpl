@@ -2,13 +2,6 @@
 # vi: ft=vim
 */}}
 let mapleader = "\<SPACE>"
-let g:spacemacs#leader = '<SPACE>'
-
-let g:spacemacs#excludes = [
-\ 'b',
-\ 'p',
-\ 'ff',
-\ ]
 
 if has('nvim')
     let g:python3_host_prog = expand('~/pyenvs/py3nvim/bin/python')
@@ -180,6 +173,11 @@ let g:spacemacs#plugins = [
             \ 'tpope/vim-commentary',
             \ 'tpope/vim-fugitive',
             \ ]
+let g:spacemacs#leader = '<SPACE>'
+let g:spacemacs#excludes = [
+\ 'bb',
+\ 'ff',
+\ ]
 
 call SpacemacsInit()
 " autocmd FileType * RainbowParentheses
