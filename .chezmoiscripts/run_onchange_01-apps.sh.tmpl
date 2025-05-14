@@ -65,7 +65,7 @@ $cinstall \
 $cinstall \
     --url "{{ gitHubReleaseAssetURL "wezterm/wezterm" "nightly" "wezterm-nightly.Ubuntu22.04.tar.xz" }}" \
     --cmd 'rm -rf ~/.local/bin/wezterm' \
-          'mv wezterm ~/.local/bin/wezterm'
+          'cp wezterm/usr/bin/* ~/.local/bin/'
           
 {{ end }}
 
