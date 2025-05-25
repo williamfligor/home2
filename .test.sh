@@ -1,6 +1,6 @@
 #!/bin/bash
 
-podman build -t chezmoi-test .
+podman build -t chezmoi-test -f .Dockerfile .
 podman run \
     --rm \
     -it \
