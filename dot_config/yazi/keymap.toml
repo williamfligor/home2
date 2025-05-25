@@ -1,0 +1,15 @@
+[[manager.prepend_keymap]]
+# create a tab and enter the hovered directory
+on   = "t"
+run  = "plugin smart-tab"
+desc = "Create a tab and enter the hovered directory"
+
+[[manager.prepend_keymap]]
+# cd back to the root of the current Git repository
+on = [ "g", "r" ]
+run = 'shell -- ya emit cd "$(git rev-parse --show-toplevel)"'
+
+[[manager.prepend_keymap]]
+# Confirm before quitting if multiple tabs are open
+on  = "q"
+run = "plugin confirm-quit"
