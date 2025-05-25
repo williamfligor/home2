@@ -17,7 +17,7 @@
       "int" : 0
     },
     "alternateDefaultShortcuts" : {
-      "bool" : true
+      "bool" : false
     },
     "alwaysAccountForStage" : {
       "int" : 0
@@ -104,7 +104,7 @@
       "int" : 0
     },
     "landscapeSnapAreas" : {
-
+      "string" : "null"
     },
     "launchOnLogin" : {
       "bool" : true
@@ -137,7 +137,7 @@
       "int" : 0
     },
     "portraitSnapAreas" : {
-
+      "string" : "null"
     },
     "relaunchOpensMenu" : {
       "bool" : false
@@ -239,19 +239,19 @@
   "shortcuts" : {
     "bottomHalf" : {
       "keyCode" : 125,
-      "modifierFlags" : 786432
+      "modifierFlags" : 1572864
     },
     "bottomLeft" : {
-      "keyCode" : 38,
-      "modifierFlags" : 786432
+      "keyCode" : 123,
+      "modifierFlags" : 1441792
     },
     "bottomRight" : {
-      "keyCode" : 40,
-      "modifierFlags" : 786432
+      "keyCode" : 124,
+      "modifierFlags" : 1441792
     },
     "center" : {
       "keyCode" : 8,
-      "modifierFlags" : 786432
+      "modifierFlags" : 1572864
     },
     "centerThird" : {
       "keyCode" : 3,
@@ -266,8 +266,8 @@
       "modifierFlags" : 786432
     },
     "larger" : {
-      "keyCode" : 24,
-      "modifierFlags" : 786432
+      "keyCode" : 124,
+      "modifierFlags" : 917504
     },
     "lastThird" : {
       "keyCode" : 5,
@@ -279,11 +279,11 @@
     },
     "leftHalf" : {
       "keyCode" : 123,
-      "modifierFlags" : 786432
+      "modifierFlags" : 1572864
     },
     "maximize" : {
-      "keyCode" : 36,
-      "modifierFlags" : 786432
+      "keyCode" : 3,
+      "modifierFlags" : 1572864
     },
     "maximizeHeight" : {
       "keyCode" : 126,
@@ -307,11 +307,11 @@
     },
     "rightHalf" : {
       "keyCode" : 124,
-      "modifierFlags" : 786432
+      "modifierFlags" : 1572864
     },
     "smaller" : {
-      "keyCode" : 27,
-      "modifierFlags" : 786432
+      "keyCode" : 123,
+      "modifierFlags" : 917504
     },
     "toggleTodo" : {
       "keyCode" : 11,
@@ -319,16 +319,16 @@
     },
     "topHalf" : {
       "keyCode" : 126,
-      "modifierFlags" : 786432
+      "modifierFlags" : 1572864
     },
     "topLeft" : {
-      "keyCode" : 32,
-      "modifierFlags" : 786432
+      "keyCode" : 123,
+      "modifierFlags" : 1310720
     },
     "topRight" : {
-      "keyCode" : 34,
-      "modifierFlags" : 786432
+      "keyCode" : 124,
+      "modifierFlags" : 1310720
     }
   },
-  "version" : "92"
+  "version" : "93"
 }
