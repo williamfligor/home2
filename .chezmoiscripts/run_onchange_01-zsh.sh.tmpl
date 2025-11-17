@@ -3,6 +3,9 @@
 set -euo pipefail
 cinstall=~/.local/share/chezmoi/dot_local/bin/executable_cinstall
 
+mkdir -p ~/.zsh/custom/plugins/
+mkdir -p ~/.zsh/custom/themes/
+
 # Oh My Zsh
 $cinstall \
     --url "https://github.com/ohmyzsh/ohmyzsh/archive/62afbdebb96bf91c044a92b75d86f85a67da67a7.zip" \
