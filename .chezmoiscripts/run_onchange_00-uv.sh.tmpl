@@ -4,7 +4,7 @@ set -euo pipefail
 cinstall=~/.local/share/chezmoi/dot_local/bin/executable_cinstall
 
 {{ $uv_url := dict
-  "linux-arm64" ( gitHubLatestReleaseAssetURL "astral-sh/uv" "uv-x86_64-unknown-linux-musl.tar.gz" )
+  "linux-amd64" ( gitHubLatestReleaseAssetURL "astral-sh/uv" "uv-x86_64-unknown-linux-musl.tar.gz" )
   "linux-arm64" ( gitHubLatestReleaseAssetURL "astral-sh/uv" "uv-aarch64-unknown-linux-musl.tar.gz" )
   "windows-amd64" ( gitHubLatestReleaseAssetURL "astral-sh/uv" "uv-x86_64-pc-windows-msvc.zip" )
   "darwin-arm64" ( gitHubLatestReleaseAssetURL "astral-sh/uv" "uv-aarch64-apple-darwin.tar.gz" )
