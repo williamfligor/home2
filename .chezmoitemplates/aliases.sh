@@ -20,6 +20,7 @@ alias cp="cp -i";
 alias rm="rm -i";
 
 alias l="ls -laFbh"
+alias ldf='ls -laFbh | grep "^d" && ls -la | grep "^-" && ls -la | grep "^l"'
 alias lg="lazygit"
 alias gs="git status"
 alias lg="lazygit"
