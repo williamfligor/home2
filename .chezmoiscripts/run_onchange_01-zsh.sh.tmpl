@@ -24,12 +24,12 @@ $cinstall \
           'mv vi-mode-* ~/.zsh/custom/plugins/vi-mode'
 
 $cinstall \
-    --url "https://github.com/MichaelAquilina/zsh-you-should-use/archive/refs/tags/1.9.0.tar.gz" \
+    --url "{{ ( gitHubLatestTag "MichaelAquilina/zsh-you-should-use" ).TarballURL }}" \
     --cmd 'rm -rf ~/.zsh/custom/plugins/zsh-you-should-use' \
-          'mv zsh-you-should-use-* ~/.zsh/custom/plugins/zsh-you-should-use'
+          'mv MichaelAquilina-zsh-you-should-use-* ~/.zsh/custom/plugins/zsh-you-should-use'
 
 $cinstall \
-    --url "https://github.com/romkatv/powerlevel10k/archive/36f3045d69d1ba402db09d09eb12b42eebe0fa3b.tar.gz" \
+    --url "{{ ( gitHubLatestTag "romkatv/powerlevel10k" ).TarballURL }}" \
     --cmd 'rm -rf ~/.zsh/custom/themes/powerlevel10k' \
-          'mv powerlevel10k-* ~/.zsh/custom/themes/powerlevel10k'
+          'mv romkatv-powerlevel10k-* ~/.zsh/custom/themes/powerlevel10k'
 
