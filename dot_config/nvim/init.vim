@@ -3,13 +3,70 @@ let &packpath=&runtimepath
 
 source ~/.vimrc
 
-" LSP configuration (equivalent to the config function)
 lua << EOF
-vim.g.coq_settings = {
-    auto_start = true,
-}
+    local blink = require('blink.cmp')
+    blink.setup({
+        -- 'default' (recommended) for mappings similar to built-in completions (C-y to accept)
+        -- 'super-tab' for mappings similar to vscode (tab to accept)
+        -- 'enter' for enter to accept
+        -- 'none' for no mappings
+        --
+        -- All presets have the following mappings:
+        -- C-space: Open menu or open docs if already open
+        -- C-n/C-p or Up/Down: Select next/previous item
+        -- C-e: Hide menu
+        -- C-k: Toggle signature help (if signature.enabled = true)
+        --
+        -- See :h blink-cmp-config-keymap for defining your own keymap
+        -- keymap = { preset = 'super-tab' },
+        keymap = {
+            preset = 'enter',
+            ['<Tab>'] = { 'select_next', 'fallback' },
+            ['<S-Tab>'] = { 'select_prev', 'fallback' },
+        },
 
-require'lspconfig'.pylsp.setup{}
+        appearance = {
+            nerd_font_variant = 'Nerd Font Mono'
+        },
+
+        completion = {
+            menu = {
+                border = nil, -- or 'single'
+            },
+            documentation = {
+                auto_show = true,
+                window = { border = 'single' },
+            },
+        },
+
+        -- Default list of enabled providers defined so that you can extend it
+        -- elsewhere in your config, without redefining it, due to `opts_extend`
+        sources = {
+            default = { 'lsp', 'path', 'snippets', 'buffer' },
+        },
+
+        -- Show function signatures
+        signature = {
+            enabled = true,
+            window = {
+                border = 'single',
+                scrollbar = true,
+            },
+        },
+
+        -- Rust fuzzy matcher for typo resistance and significantly better performance
+        -- You may use a lua implementation instead by using `implementation = 'lua'` or fallback to the lua implementation,
+        -- when the Rust fuzzy matcher is not available, by using `implementation = 'prefer_rust'`
+        fuzzy = { implementation = 'prefer_rust_with_warning' },
+    })
+
+    -- Enable LSP's
+    -- See https://github.com/neovim/nvim-lspconfig/blob/master/doc/configs.md
+    vim.lsp.enable('pylsp') -- pip install python-lsp-server
+    vim.lsp.enable('clangd')
+    vim.lsp.enable('bitbake_language_server') -- pip install bitbake-language-server
+    vim.lsp.enable('tclsp') -- pip install tclint
 EOF
+
 
 set notermguicolors
