@@ -199,8 +199,19 @@ def detect_and_extract(archive_path: Path, destination: Path):
 def download_and_extract(url: str) -> Path:
     filename = Path(urlparse(url).path).name
     archive_dest = root / filename
+    archive_dest_url = archive_dest.parent / (archive_dest.name + '.url')
+
+    download = False
 
     if not archive_dest.exists():
+        download = True
+    elif not archive_dest_url.exists():
+        download = True
+    else:
+        if archive_dest_url.read_text().strip() != url:
+            download = True
+
+    if download:
         print(f"Downloading {url} to {archive_dest}...", end="", flush=True)
 
         # Create a request object with the User-Agent
@@ -216,6 +227,7 @@ def download_and_extract(url: str) -> Path:
             with open(archive_dest, "wb") as out_file:
                 out_file.write(response.read())
 
+        archive_dest_url.write_text(url)
         print("Done")
 
     print(f"Extracting {archive_dest.stem}...")
