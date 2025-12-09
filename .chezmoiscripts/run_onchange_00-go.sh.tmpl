@@ -4,6 +4,6 @@ set -euo pipefail
 cinstall=~/.local/share/chezmoi/dot_local/bin/executable_cinstall
 
 $cinstall \
-    --url "{{ printf "https://go.dev/dl/go1.24.3.%s-%s.tar.gz" .chezmoi.os .chezmoi.arch }}" \
+    --url "https://dl.google.com/go/$(curl https://go.dev/VERSION?m=text | head -n1).{{ .chezmoi.os }}-{{ .chezmoi.arch }}.tar.gz" \
     --cmd 'rm -rf ~/.local/bin/go' \
           'mv go ~/.local/bin/go'
