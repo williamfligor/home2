@@ -1,0 +1,8 @@
+#!/bin/bash
+
+uv run \
+    --with ruff \
+    --with python-lsp-server \
+    --with python-lsp-ruff \
+    --with pylsp-mypy \
+    pylsp "$@"

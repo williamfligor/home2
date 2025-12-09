@@ -62,7 +62,7 @@ lua << EOF
 
     -- Enable LSP's
     -- See https://github.com/neovim/nvim-lspconfig/blob/master/doc/configs.md
-    vim.lsp.enable('pylsp') -- pip install python-lsp-server
+    vim.lsp.enable('pylsp')
     vim.lsp.enable('clangd')
     vim.lsp.enable('bitbake_language_server') -- pip install bitbake-language-server
     vim.lsp.enable('tclsp') -- pip install tclint
