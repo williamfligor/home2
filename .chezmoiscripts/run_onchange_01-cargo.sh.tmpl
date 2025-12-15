@@ -1,6 +1,8 @@
 #!/bin/bash
 # vi: ft=bash
 
+{{ if lookPath "cc" }}
+
 ~/.cargo/bin/cargo install --locked \
     fd-find \
     zoxide \
@@ -14,3 +16,5 @@
     bandwhich \
     spacer \
     pipr
+
+{{ end }}
