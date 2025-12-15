@@ -1,5 +1,14 @@
 # vi: ft=toml
 
+# Output of the 'chezmoi data' in Yaml instead of JSON. It's more convenient and easy on the eyes.
+format = "yaml"
+
+{{ if eq .chezmoi.os "linux" -}}
+# Redefine temporary directory for scripts in case of /tmp is mounted with the 'noexec' option
+# See: https://www.chezmoi.io/user-guide/frequently-asked-questions/troubleshooting/#chezmoi-reports-chezmoi-forkexec-tmpxxxxxxxxxxxx-permission-denied-when-executing-a-script
+scriptTempDir = {{ joinPath "/run/user" (toString .chezmoi.uid) | quote }}
+{{ end }}
+
 {{ if eq .chezmoi.os "windows" -}}
 [interpreters]
     sh = { command = 'C:/Users/will/AppData/Local/Programs/Git/bin/bash.exe' }
