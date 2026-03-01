@@ -16,4 +16,6 @@ RUN curl -sfL https://git.io/chezmoi | sh
 ENV HOME=/root
 WORKDIR /root
 
-# CMD chezmoi init && chezmoi apply && bash
+RUN mkdir -p /root/.local/share/chezmoi
+COPY . /root/.local/share/chezmoi
+RUN chezmoi init && chezmoi apply
