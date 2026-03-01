@@ -1,0 +1,15 @@
+#!/bin/bash
+# vi: ft=bash
+set -euo pipefail
+cinstall=~/.local/share/chezmoi/dot_local/bin/executable_cinstall
+
+{{ $uv_url := dict
+  "linux-amd64" ( gitHubLatestReleaseAssetURL "oven-sh/bun" "bun-linux-x64.zip" )
+  "linux-arm64" ( gitHubLatestReleaseAssetURL "oven-sh/bun" "bun-linux-aarch64.zip" )
+  "windows-amd64" ( gitHubLatestReleaseAssetURL "oven-sh/bun" "bun-windows-x64.zip" )
+  "darwin-arm64" ( gitHubLatestReleaseAssetURL "oven-sh/bun" "bun-darwin-aarch64.zip" )
+}}
+$cinstall \
+    --url "{{ get $uv_url ( printf "%s-%s" .chezmoi.os .chezmoi.arch ) }}" \
+    --cmd 'mv bun*/bun ~/.local/bin/bun'
+
