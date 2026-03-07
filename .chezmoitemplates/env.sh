@@ -16,6 +16,7 @@ export PATH="$HOME/.local/bin/:$PATH"
 export PATH="$HOME/.local/bin/git-fuzzy/bin/:$PATH"
 export PATH="$HOME/.local/bin/nvim/bin/:$PATH"
 export PATH="$HOME/.local/bin/go/bin/:$PATH"
+export PATH="$HOME/.bun/bin/:$PATH"
 export PATH="$HOME/.cargo/bin/:$PATH"
 
 if command -v nvim > /dev/null 2>&1; then
