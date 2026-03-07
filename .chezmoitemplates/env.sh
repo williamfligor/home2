@@ -13,7 +13,6 @@ export GPG_TTY=$(tty)
 
 # Ensure toolls in ~/.local/bin are in PATH
 export PATH="$HOME/.local/bin/:$PATH"
-export PATH="$HOME/.local/bin/golang/bin/:$PATH"
 export PATH="$HOME/.local/bin/git-fuzzy/bin/:$PATH"
 export PATH="$HOME/.local/bin/nvim/bin/:$PATH"
 export PATH="$HOME/.local/bin/go/bin/:$PATH"
