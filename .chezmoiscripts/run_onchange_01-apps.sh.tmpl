@@ -10,7 +10,7 @@ mkdir -p ~/Applications
 # Ghostty (macOS only)
 {{ if eq .chezmoi.os "darwin" }}
 $cinstall \
-    --url "https://release.files.ghostty.org/1.0.1/Ghostty.dmg" \
+    --url "https://release.files.ghostty.org/1.3.0/Ghostty.dmg" \
     --cmd 'rm -rf ~/Applications/Ghostty.app/' \
           'rsync -a Ghostty.app ~/Applications/'
 {{ end }}
