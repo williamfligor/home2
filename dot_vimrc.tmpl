@@ -23,6 +23,7 @@ nnoremap <space>bb :Buffers<CR>
 nnoremap <space>pf :GFiles<CR>
 nnoremap <space>ff :Files<CR>
 nnoremap <space>md :Dox<CR>
+nnoremap <space>se :lua vim.diagnostic.open_float()<CR>
 
 " Remove trailing whitespace
 nnoremap <leader>W :%s/\s\+$//<cr>:let @/=\'\'<CR>
