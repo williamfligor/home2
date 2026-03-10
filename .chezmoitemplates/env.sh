@@ -18,6 +18,7 @@ export PATH="$HOME/.local/bin/nvim/bin/:$PATH"
 export PATH="$HOME/.local/bin/go/bin/:$PATH"
 export PATH="$HOME/.bun/bin/:$PATH"
 export PATH="$HOME/.cargo/bin/:$PATH"
+export PATH="$HOME/go/bin/:$PATH"
 
 if command -v nvim > /dev/null 2>&1; then
     export EDITOR="nvim"
