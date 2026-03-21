@@ -66,6 +66,19 @@ lua << EOF
     vim.lsp.enable('clangd')
     vim.lsp.enable('bitbake_language_server') -- pip install bitbake-language-server
     vim.lsp.enable('tclsp') -- pip install tclint
+
+    local sidekick = require('sidekick')
+    sidekick.setup({
+        opts = {
+            nes = { enabled = false },
+        },
+        cli = {
+            mux = {
+                backend = "zellij",
+                enabled = false,
+            },
+        },
+    })
 EOF
 
 

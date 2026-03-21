@@ -118,6 +118,18 @@ $cinstall \
           'mkdir -p ~/.config/nvim/pack/neovim/start/' \
           'mv nvim-lspconfig-* ~/.config/nvim/pack/neovim/start/nvim-lspconfig'
 
+$cinstall \
+    --url "https://github.com/folke/sidekick.nvim/archive/8ad0ede3ff9065878a853e4b037ba6ac88231fb0.zip" \
+    --cmd 'rm -rf ~/.config/nvim/pack/folke/start/sidekick.nvim' \
+          'mkdir -p ~/.config/nvim/pack/folke/start/' \
+          'mv sidekick.nvim-* ~/.config/nvim/pack/folke/start/sidekick.nvim'
+
+$cinstall \
+    --url "https://github.com/folke/snacks.nvim/archive/ad9ede6a9cddf16cedbd31b8932d6dcdee9b716e.zip" \
+    --cmd 'rm -rf ~/.config/nvim/pack/folke/start/snacks.nvim' \
+          'mkdir -p ~/.config/nvim/pack/folke/start/' \
+          'mv snacks.nvim-* ~/.config/nvim/pack/folke/start/snacks.nvim'
+
 # Remove coq
 rm -rf ~/.config/nvim/pack/ms-jpq/start/coq.artifacts || true
 rm -rf ~/.config/nvim/pack/ms-jpq/start/coq_nvim || true

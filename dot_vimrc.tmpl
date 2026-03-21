@@ -17,13 +17,40 @@ let g:fzf_vim.preview_bash = '{{ .chezmoi.homeDir }}/AppData/Local/Programs/Git/
 
 " ----- KEY MAPPINGS -------
 nnoremap <silent> <leader> :WhichKey '<Space>'<CR>
-nnoremap <leader>rn :call NumberToggle()<Cr>
-nnoremap <leader><space> :noh<cr>
 nnoremap <space>bb :Buffers<CR>
 nnoremap <space>pf :GFiles<CR>
 nnoremap <space>ff :Files<CR>
 nnoremap <space>md :Dox<CR>
-nnoremap <space>se :lua vim.diagnostic.open_float()<CR>
+
+" Neovim Kep Mappings
+if has('nvim')
+    nnoremap <space>se :lua vim.diagnostic.open_float()<CR>
+
+    " Sidekick key mappings
+    " Sidekick Focus (normal, terminal, insert, visual)
+    nnoremap <silent> <c-.> :lua require('sidekick.cli').focus()<CR>
+    tnoremap <silent> <c-.> :lua require('sidekick.cli').focus()<CR>
+    inoremap <silent> <c-.> <C-o>:lua require('sidekick.cli').focus()<CR>
+    xnoremap <silent> <c-.> :lua require('sidekick.cli').focus()<CR>
+    " Sidekick Toggle CLI
+    nnoremap <leader>aa :lua require('sidekick.cli').toggle()<CR>
+    " Select CLI
+    nnoremap <leader>as :lua require('sidekick.cli').select()<CR>
+    " Detach a CLI Session
+    nnoremap <leader>ad :lua require('sidekick.cli').close()<CR>
+    " Send This (normal, visual)
+    nnoremap <leader>at :lua require('sidekick.cli').send({msg = '{this}'})<CR>
+    xnoremap <leader>at :lua require('sidekick.cli').send({msg = '{this}'})<CR>
+    " Send File
+    nnoremap <leader>af :lua require('sidekick.cli').send({msg = '{file}'})<CR>
+    " Send Visual Selection
+    xnoremap <leader>av :Sidekick cli send<CR>
+    " Sidekick Select Prompt (normal, visual)
+    nnoremap <leader>ap :lua require('sidekick.cli').prompt()<CR>
+    xnoremap <leader>ap :lua require('sidekick.cli').prompt()<CR>
+    " Sidekick Toggle Claude
+    nnoremap <leader>ac :lua require('sidekick.cli').toggle({name = 'claude', focus = true})<CR>
+endif
 
 " Remove trailing whitespace
 nnoremap <leader>W :%s/\s\+$//<cr>:let @/=\'\'<CR>

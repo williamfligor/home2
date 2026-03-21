@@ -53,6 +53,9 @@ export PATH=$PATH:/c/Program\ Files/Oracle/VirtualBox
 
 {{ template "functions.sh" . }}
 
+# Load ~/.local.sh if found
+[[ ! -f ~/.local.sh ]] || source ~/.local.sh
+
 # ------------------------ Key Bindings --------------------------------
 bindkey -M vicmd '^[' undefined-key
 
