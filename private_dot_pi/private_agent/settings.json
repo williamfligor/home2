@@ -1,0 +1,26 @@
+{
+  "defaultProvider": "openrouter",
+  "defaultModel": "openai/gpt-oss-120b",
+  "theme": "light",
+  "enableSkillCommands": true,
+  "compaction": {
+    "enabled": true,
+    "reserveTokens": 19200,
+    "keepRecentTokens": 19200
+  },
+  "retry": {
+    "enabled": true,
+    "maxRetries": 3
+  },
+  "lastChangelogVersion": "0.61.1",
+  "packages": [
+    "npm:pi-markdown-preview",
+    "npm:@guwidoe/pi-prompt-suggester",
+    "npm:@aliou/pi-guardrails",
+    "npm:pi-subagents",
+    "npm:pi-context",
+    "npm:@ifi/oh-pi-prompts",
+    "npm:pi-rewind",
+    "npm:pi-vim"
+  ]
+}
