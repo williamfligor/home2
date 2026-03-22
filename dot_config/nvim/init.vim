@@ -69,9 +69,7 @@ lua << EOF
 
     local sidekick = require('sidekick')
     sidekick.setup({
-        opts = {
-            nes = { enabled = false },
-        },
+        nes = { enabled = false },
         cli = {
             mux = {
                 backend = "zellij",
