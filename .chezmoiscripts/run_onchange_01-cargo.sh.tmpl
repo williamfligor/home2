@@ -3,20 +3,6 @@
 
 {{ if lookPath "cc" }}
 
-~/.cargo/bin/cargo install --locked \
-    fd-find \
-    zoxide \
-    navi \
-    ripgrep \
-    eza \
-    git-delta \
-    bat \
-    zellij \
-    bottom \
-    bandwhich \
-    spacer \
-    pipr \
-    tlrc
 # `find` replacement
 ~/.cargo/bin/cargo install --locked fd-find
 
@@ -49,4 +35,12 @@
 
 # TLDR client
 ~/.cargo/bin/cargo install --locked tlrc
+
+# For pi-hashline-readmap
+~/.cargo/bin/cargo install --locked ast-grep
+~/.cargo/bin/cargo install --locked difftastic
+
+# MTR / Traceroute tool
+~/.cargo/bin/cargo install --locked trippy
+
 {{ end }}
