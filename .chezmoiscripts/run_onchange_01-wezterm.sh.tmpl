@@ -1,0 +1,23 @@
+#!/bin/bash
+# vi: ft=bash
+set -euo pipefail
+cinstall=~/.local/share/chezmoi/dot_local/bin/executable_cinstall
+
+{{ if eq .chezmoi.os "darwin" }}
+mkdir -p ~/Applications
+$cinstall \
+    --url "{{ gitHubReleaseAssetURL "wezterm/wezterm" "nightly" "WezTerm-macos-nightly.zip" }}" \
+    --cmd 'rm -rf ~/Applications/WezTerm.app/' \
+          'cd WezTerm*' \
+          'rsync -a WezTerm.app ~/Applications/'
+{{ else if eq .chezmoi.os "windows" }}
+$cinstall \
+    --url "{{ gitHubReleaseAssetURL "wezterm/wezterm" "nightly" "WezTerm-windows-nightly.zip" }}" \
+    --cmd 'rm -rf ~/.local/bin/wezterm' \
+          'mv wezterm ~/.local/bin/wezterm'
+{{ else }}
+$cinstall \
+    --url "{{ gitHubReleaseAssetURL "wezterm/wezterm" "nightly" "wezterm-nightly.Ubuntu22.04.tar.xz" }}" \
+    --cmd 'rm -rf ~/.local/bin/wezterm' \
+          'cp wezterm/usr/bin/* ~/.local/bin/'
+{{ end }}

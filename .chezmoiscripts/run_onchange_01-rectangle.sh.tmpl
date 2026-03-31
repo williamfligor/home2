@@ -1,0 +1,12 @@
+#!/bin/bash
+# vi: ft=bash
+set -euo pipefail
+cinstall=~/.local/share/chezmoi/dot_local/bin/executable_cinstall
+
+{{ if eq .chezmoi.os "darwin" }}
+mkdir -p ~/Applications
+$cinstall \
+    --url "{{ gitHubLatestReleaseAssetURL "rxhanson/Rectangle" "Rectangle*.dmg" }}" \
+    --cmd 'rm -rf ~/Applications/Rectangle.app/' \
+          'rsync -a Rectangle.app ~/Applications/'
+{{ end }}

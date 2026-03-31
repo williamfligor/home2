@@ -1,0 +1,12 @@
+#!/bin/bash
+# vi: ft=bash
+set -euo pipefail
+cinstall=~/.local/share/chezmoi/dot_local/bin/executable_cinstall
+
+{{ if eq .chezmoi.os "darwin" }}
+mkdir -p ~/Applications
+$cinstall \
+    --url "https://release.files.ghostty.org/1.3.0/Ghostty.dmg" \
+    --cmd 'rm -rf ~/Applications/Ghostty.app/' \
+          'rsync -a Ghostty.app ~/Applications/'
+{{ end }}
