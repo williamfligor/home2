@@ -12,22 +12,13 @@
     "enabled": true,
     "maxRetries": 3
   },
-  "lastChangelogVersion": "0.61.1",
+  "lastChangelogVersion": "0.64.0",
   "packages": [
     "npm:pi-markdown-preview",
-    "npm:@guwidoe/pi-prompt-suggester",
     "npm:@aliou/pi-guardrails",
     "npm:pi-context",
     "npm:@ifi/oh-pi-prompts",
     "npm:pi-rewind",
-    "npm:pi-vim",
-    {
-      "source": "npm:pi-amplike",
-      "skills": [
-        "-skills/session-query/SKILL.md",
-        "-skills/visit-webpage/SKILL.md",
-        "-skills/web-search/SKILL.md"
-      ]
-    }
+    "npm:pi-vim"
   ]
 }
