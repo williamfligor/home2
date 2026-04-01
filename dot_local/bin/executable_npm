@@ -1,0 +1,20 @@
+#!/bin/bash
+# npm wrapper for bun - forwards npm commands to bun
+# This allows tools that expect npm to work with bun
+
+# https://github.com/badlogic/pi-mono/discussions/1453#discussion-9454507
+
+case "$1" in
+    root)
+        # Handle npm root -g command
+        if [[ "$2" == "-g" ]]; then
+            echo "$HOME/.cache/.bun/install/global/node_modules"
+        else
+            echo "node_modules"
+        fi
+        ;;
+    *)
+        # Forward all other commands to bun
+        ~/.local/bin/bun "$@"
+        ;;
+esac
