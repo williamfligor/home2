@@ -1,3 +1,10 @@
 #!/bin/bash
 
+for dir in ${PATH//:/ } ; do
+    candidate="$dir/node"
+    if [[ -x "$candidate" && "$candidate" != "$0" ]]; then
+        exec "$candidate" "$@"
+    fi
+done
+
 exec ~/.local/bin/bun "$@"

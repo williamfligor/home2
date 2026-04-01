@@ -1,8 +1,13 @@
 #!/bin/bash
-# npm wrapper for bun - forwards npm commands to bun
-# This allows tools that expect npm to work with bun
-
+# npm wrapper: prefer real npm if available, otherwise fallback to bun
 # https://github.com/badlogic/pi-mono/discussions/1453#discussion-9454507
+
+for dir in ${PATH//:/ } ; do
+    candidate="$dir/npm"
+    if [[ -x "$candidate" && "$candidate" != "$0" ]]; then
+        exec "$candidate" "$@"
+    fi
+done
 
 case "$1" in
     root)
@@ -15,6 +20,6 @@ case "$1" in
         ;;
     *)
         # Forward all other commands to bun
-        ~/.local/bin/bun "$@"
+        exec ~/.local/bin/bun "$@"
         ;;
 esac
