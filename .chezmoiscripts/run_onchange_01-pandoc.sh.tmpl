@@ -10,5 +10,4 @@ cinstall=~/.local/share/chezmoi/dot_local/bin/executable_cinstall
 }}
 $cinstall \
     --url "{{ get $pandoc_url ( printf "%s-%s" .chezmoi.os .chezmoi.arch ) }}" \
-    --cmd 'find .' \
-          'mv */bin/pandoc* ~/.local/bin/'
+    --cmd 'mv */bin/pandoc* ~/.local/bin/'
