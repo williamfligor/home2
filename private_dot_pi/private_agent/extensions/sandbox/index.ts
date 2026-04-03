@@ -302,13 +302,65 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand("sandbox", {
-		description: "Show sandbox configuration",
-		handler: async (_args, ctx) => {
+		description: "Manage sandbox extension (enable/disable/status)",
+		handler: async (args, ctx) => {
+			const sub = args?.toLowerCase() ?? "status";
+			if (sub === "enable") {
+				if (!sandboxInitialized) {
+					// Attempt initialization using current config
+					try {
+						const config = loadConfig(ctx.cwd);
+						const platform = process.platform;
+						if (platform !== "darwin" && platform !== "linux") {
+							ctx.ui.notify(`Sandbox not supported on ${platform}`, "error");
+							return;
+						}
+						const configExt = config as unknown as {
+							ignoreViolations?: Record<string, string[]>;
+							enableWeakerNestedSandbox?: boolean;
+						};
+						await SandboxManager.initialize({
+							network: config.network,
+							filesystem: config.filesystem,
+							ignoreViolations: configExt.ignoreViolations,
+							enableWeakerNestedSandbox: configExt.enableWeakerNestedSandbox,
+						});
+						sandboxInitialized = true;
+					} catch (err) {
+						ctx.ui.notify(`Sandbox initialization failed: ${err instanceof Error ? err.message : err}`, "error");
+						return;
+					}
+				}
+				sandboxEnabled = true;
+				ctx.ui.notify("Sandbox enabled", "success");
+				const config = loadConfig(ctx.cwd);
+				const networkCount = config.network?.allowedDomains?.length ?? 0;
+				const writeCount = config.filesystem?.allowWrite?.length ?? 0;
+				ctx.ui.setStatus(
+					"sandbox",
+					ctx.ui.theme.fg("accent", `🔒 Sandbox: ${networkCount} domains, ${writeCount} write paths`),
+				);
+				return;
+			}
+			if (sub === "disable") {
+				sandboxEnabled = false;
+				if (sandboxInitialized) {
+					try {
+						await SandboxManager.reset();
+					} catch {
+						// ignore
+					}
+					sandboxInitialized = false;
+				}
+				ctx.ui.notify("Sandbox disabled", "info");
+				ctx.ui.setStatus("sandbox", ctx.ui.theme.fg("accent", "🔓 Sandbox: disabled"));
+				return;
+			}
+			// status or any other
 			if (!sandboxEnabled) {
 				ctx.ui.notify("Sandbox is disabled", "info");
 				return;
 			}
-
 			const config = loadConfig(ctx.cwd);
 			const lines = [
 				"Sandbox Configuration:",
