@@ -1,0 +1,13 @@
+#!/bin/bash
+# vi: ft=bash
+set -euo pipefail
+cinstall=~/.local/share/chezmoi/dot_local/bin/executable_cinstall
+
+{{ $tmux_url := dict
+  "darwin-arm64" ( gitHubLatestReleaseAssetURL "tmux/tmux-builds" "tmux-3.6a-macos-arm64.tar.gz" )
+  "linux-amd64" ( gitHubLatestReleaseAssetURL "tmux/tmux-builds" "tmux-3.6a-linux-x86_64.tar.gz" )
+  "linux-arm64" ( gitHubLatestReleaseAssetURL "tmux/tmux-builds" "tmux-3.6a-linux-arm64.tar.gz" )
+}}
+$cinstall \
+    --url "{{ get $tmux_url ( printf "%s-%s" .chezmoi.os .chezmoi.arch ) }}" \
+    --cmd 'mv tmux ~/.local/bin/'
