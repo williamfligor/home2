@@ -4,9 +4,9 @@ set -euo pipefail
 cinstall=~/.local/share/chezmoi/dot_local/bin/executable_cinstall
 
 {{ $pandoc_url := dict
-  "darwin-arm64" ( gitHubLatestReleaseAssetURL "jgm/pandoc" "pandoc-3.9.0.2-arm64-macOS.zip" )
-  "linux-amd64" ( gitHubLatestReleaseAssetURL "jgm/pandoc" "pandoc-3.9.0.2-linux-amd64.tar.gz" )
-  "linux-arm64" ( gitHubLatestReleaseAssetURL "jgm/pandoc" "pandoc-3.9.0.2-linux-arm64.tar.gz" )
+  "darwin-arm64" ( gitHubLatestReleaseAssetURL "jgm/pandoc" "pandoc-*-arm64-macOS.zip" )
+  "linux-amd64" ( gitHubLatestReleaseAssetURL "jgm/pandoc" "pandoc-*-linux-amd64.tar.gz" )
+  "linux-arm64" ( gitHubLatestReleaseAssetURL "jgm/pandoc" "pandoc-*-linux-arm64.tar.gz" )
 }}
 $cinstall \
     --url "{{ get $pandoc_url ( printf "%s-%s" .chezmoi.os .chezmoi.arch ) }}" \
