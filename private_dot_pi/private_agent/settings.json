@@ -15,7 +15,6 @@
   "lastChangelogVersion": "0.64.0",
   "packages": [
     "npm:pi-markdown-preview",
-    "npm:@aliou/pi-guardrails",
     "npm:pi-context",
     "npm:@ifi/oh-pi-prompts",
     "npm:pi-rewind",
