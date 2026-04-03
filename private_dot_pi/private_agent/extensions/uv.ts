@@ -31,7 +31,7 @@
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { createBashTool } from "@mariozechner/pi-coding-agent";
+import { isToolCallEventType } from "@mariozechner/pi-coding-agent";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
@@ -117,17 +117,14 @@ function getBlockedCommandMessage(command: string): string | null {
 }
 
 export default function (pi: ExtensionAPI) {
-  const cwd = process.cwd();
-  const bashTool = createBashTool(cwd, {
-    commandPrefix: `export PATH="${interceptedCommandsPath}:$PATH"`,
-    spawnHook: (ctx) => {
-      const blockedMessage = getBlockedCommandMessage(ctx.command);
-      if (blockedMessage) {
-        throw new Error(blockedMessage);
-      }
-      return ctx;
-    },
-  });
+  pi.on("tool_call", async (event, _ctx) => {
+    if (!isToolCallEventType("bash", event)) return;
 
-  pi.registerTool(bashTool);
+    const blocked = getBlockedCommandMessage(event.input.command);
+    if (blocked) {
+      return { block: true, reason: blocked };
+    }
+
+    event.input.command = `export PATH="${interceptedCommandsPath}:$PATH"\n${event.input.command}`;
+  });
 }
