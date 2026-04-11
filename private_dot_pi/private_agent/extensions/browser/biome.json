@@ -1,0 +1,80 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.4.11/schema.json",
+	"vcs": {
+		"enabled": true,
+		"clientKind": "git"
+	},
+	"files": {
+		"ignoreUnknown": true
+	},
+	"formatter": {
+		"enabled": true,
+		"indentStyle": "tab",
+		"indentWidth": 4,
+		"lineWidth": 100,
+		"lineEnding": "lf"
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"recommended": true,
+			"correctness": {
+				"noUnusedVariables": "error",
+				"noUndeclaredVariables": "error",
+				"noUnusedImports": "error"
+			},
+			"suspicious": {
+				"noExplicitAny": "warn",
+				"noEmptyInterface": "warn",
+				"noShadowRestrictedNames": "error"
+			},
+			"style": {
+				"noNonNullAssertion": "warn",
+				"useImportType": "error"
+			},
+			"complexity": {
+				"noUselessSwitchCase": "error",
+				"useFlatMap": "warn"
+			},
+			"security": {
+				"noDangerouslySetInnerHtml": "error",
+				"noGlobalEval": "error",
+				"noSecrets": "warn"
+			},
+			"a11y": {
+				"useAltText": "error",
+				"useValidAriaRole": "error",
+				"useValidAriaValues": "error"
+			},
+			"nursery": {
+				"useImportsFirst": "error"
+			}
+		}
+	},
+	"javascript": {
+		"formatter": {
+			"quoteStyle": "double",
+			"semicolons": "always",
+			"trailingCommas": "all",
+			"arrowParentheses": "always"
+		}
+	},
+	"overrides": [
+		{
+			"includes": ["**/*.test.ts", "**/*.spec.ts"],
+			"linter": {
+				"rules": {
+					"security": {
+						"noSecrets": "off"
+					},
+					"suspicious": {
+						"noExplicitAny": "off"
+					},
+					"correctness": {
+						"noUnusedVariables": "off"
+					}
+				}
+			}
+		}
+	]
+}
