@@ -16,14 +16,16 @@
         "deniedDomains": []
     },
     "filesystem": {
-        "denyRead": [
-            "/"
-        ],
+        "denyRead": [],
         "allowRead": [
-            "."
+            ".",
+            "~/.cache/uv/"
         ],
         "allowWrite": [
             ".",
+            "~/.npm",
+            "~/.bun",
+            "~/.cache/uv/",
             "/tmp"
         ],
         "denyWrite": [
