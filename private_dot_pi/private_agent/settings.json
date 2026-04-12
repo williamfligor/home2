@@ -12,12 +12,14 @@
     "enabled": true,
     "maxRetries": 3
   },
-  "lastChangelogVersion": "0.64.0",
+  "lastChangelogVersion": "0.66.1",
   "packages": [
     "npm:pi-markdown-preview",
     "npm:pi-context",
     "npm:@ifi/oh-pi-prompts",
     "npm:pi-rewind",
-    "npm:pi-vim"
-  ]
+    "npm:pi-vim",
+    "https://github.com/williamfligor/pi-duckfeed.git"
+  ],
+  "defaultThinkingLevel": "high"
 }
