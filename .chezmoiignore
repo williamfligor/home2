@@ -2,3 +2,11 @@
 
 .config/nvim/pack/ms-jpq/start/coq_nvim/.vars
 .oh-my-zsh/cache/
+
+**/.DS_Store
+
+.pi/agent/private_auth.json
+.pi/agent/run-history.jsonl
+.pi/agent/git/
+.pi/agent/sessions/
+.pi/agent/extensions/sandbox/node_modules
