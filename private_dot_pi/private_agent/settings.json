@@ -3,6 +3,7 @@
   "defaultModel": "qwen3.6-35b-a3b",
   "theme": "light",
   "enableSkillCommands": true,
+  "npmCommand": ["bun", "x", "npm"],
   "compaction": {
     "enabled": true,
     "reserveTokens": 19200,
