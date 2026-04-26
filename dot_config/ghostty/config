@@ -1,0 +1,5 @@
+theme = iTerm2 Solarized Light
+font-family = JetBrains Mono
+shell-integration-features = ssh-env,ssh-terminfo
+
+palette = 7=#eee8d5
