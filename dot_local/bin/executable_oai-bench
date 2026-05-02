@@ -1,0 +1,369 @@
+#!/usr/bin/env -S uv run --script
+#
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["openai", "rich"]
+# ///
+"""
+Generic LLM benchmarking utility.
+
+Compares token usage and latency across different model configurations
+including reasoning_effort levels and enable_thinking settings.
+
+Metrics tracked:
+  - prompt_tokens, completion_tokens, reasoning_tokens, total_tokens
+  - time_to_first_word (ms)
+  - total_latency (s)
+  - tokens_per_second (including reasoning tokens)
+
+Usage:
+    uv run compare_reasoning_effort.py                      # all combos, o3-mini
+    uv run compare_reasoning_effort.py --model o3           # all combos, o3
+    uv run compare_reasoning_effort.py --models o3-mini o3  # multiple models
+    uv run compare_reasoning_effort.py --no-thinking        # only thinking=False
+    uv run compare_reasoning_effort.py --only-thinking      # only thinking=True
+    uv run compare_reasoning_effort.py --efforts none high  # subset of efforts
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import os
+import sys
+import time
+from dataclasses import dataclass
+
+from openai import AsyncOpenAI, AsyncStream
+from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
+from rich.console import Console
+from rich.table import Table
+
+REASONING_EFFORTS = ["none", "low", "medium", "high"]
+ENABLE_THINKING_VALUES = [True, False]
+
+
+@dataclass
+class Result:
+    model: str
+    effort: str
+    enable_thinking: bool
+    prompt: str
+
+    # Token counts
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    reasoning_tokens: int = 0
+    total_tokens: int = 0
+
+    # Timing
+    time_to_first_word: float = 0.0
+    total_latency: float = 0.0
+    tokens_per_second: float = 0.0
+
+    success: bool = False
+    error: str = ""
+
+
+async def run_one(
+    client: AsyncOpenAI,
+    model: str,
+    prompt: str,
+    effort: str,
+    enable_thinking: bool,
+) -> Result:
+    """Run a single (model, effort, enable_thinking) variant and return stats."""
+    result = Result(
+        model=model,
+        effort=effort,
+        enable_thinking=enable_thinking,
+        prompt=prompt,
+    )
+    start = time.monotonic()
+    first_word_time: float | None = None
+    try:
+        kwargs: dict = {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "reasoning_effort": effort,
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }
+        if enable_thinking is not None:
+            kwargs["extra_body"] = {
+                "chat_template_kwargs": {"enable_thinking": enable_thinking},
+            }
+
+        stream: AsyncStream[ChatCompletionChunk] = await client.chat.completions.create(
+            **kwargs
+        )
+
+        # Accumulate reasoning and non-reasoning content to count tokens
+        reasoning_text = ""
+        completion_text = ""
+        first_chunk_seen = False
+        async for chunk in stream:
+            # Skip chunks with no choices (keep-alives, pings, etc.)
+            if not chunk.choices:
+                continue
+            choice = chunk.choices[0]
+            delta = choice.delta
+
+            # TTFW: captured on the very first chunk with content
+            if not first_chunk_seen:
+                first_chunk_seen = True
+                first_word_time = time.monotonic() - start
+
+            # Count reasoning tokens from reasoning_content
+            reasoning = getattr(delta, "reasoning_content", None)
+            if reasoning:
+                reasoning_text += reasoning
+
+            # Count completion tokens from content
+            content = getattr(delta, "content", None)
+            if content:
+                completion_text += content
+
+            # Also grab usage if present (final chunk, OpenAI only)
+            if chunk.usage is not None:
+                result.prompt_tokens = chunk.usage.prompt_tokens
+                result.total_tokens = chunk.usage.total_tokens
+
+        # Rough token count: chars / 4 (reasonable for English text)
+        result.reasoning_tokens = len(reasoning_text) // 4
+        result.completion_tokens = len(completion_text) // 4
+        # If usage metadata was reliable, use it for total; otherwise derive
+        if result.total_tokens == 0:
+            result.total_tokens = (
+                result.prompt_tokens
+                + result.completion_tokens
+                + result.reasoning_tokens
+            )
+
+        result.time_to_first_word = (
+            first_word_time if first_word_time is not None else 0.0
+        )
+        result.total_latency = time.monotonic() - start
+        if result.total_latency > 0:
+            result.tokens_per_second = result.total_tokens / result.total_latency
+        result.success = True
+
+    except Exception as exc:
+        result.total_latency = time.monotonic() - start
+        result.error = str(exc)
+    return result
+
+
+async def run_all(
+    client: AsyncOpenAI,
+    models: list[str],
+    prompt: str,
+    efforts: list[str],
+    only_thinking: bool | None,
+) -> list[Result]:
+    """Run every (model, effort, enable_thinking) combination sequentially."""
+    results: list[Result] = []
+    thinking_values = ENABLE_THINKING_VALUES
+    if only_thinking is True:
+        thinking_values = [True]
+    elif only_thinking is False:
+        thinking_values = [False]
+
+    total = len(models) * len(efforts) * len(thinking_values)
+    count = 0
+
+    for model in models:
+        for effort in efforts:
+            for enable_thinking in thinking_values:
+                count += 1
+                tag = f"[{count}/{total}] {model} | {effort} | think={enable_thinking}"
+                print(f"  {tag} running ...", file=sys.stderr, flush=True)
+                result = await run_one(
+                    client,
+                    model,
+                    prompt,
+                    effort,
+                    enable_thinking,
+                )
+                results.append(result)
+                status = "ok" if result.success else f"FAIL: {result.error}"
+                print(
+                    f"  {tag} done  "
+                    f"tok={result.total_tokens:>6}  "
+                    f"ttfw={result.time_to_first_word * 1000:>7.0f}ms  "
+                    f"lat={result.total_latency:.1f}s  "
+                    f"{status}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+    return results
+
+
+def print_table(results: list[Result], console: Console) -> None:
+    """Pretty-print a comparison table using rich."""
+    table = Table(
+        title="LLM Benchmark Results",
+        show_lines=True,
+        title_style="bold cyan",
+    )
+
+    # String columns
+    table.add_column("Model", style="bold white", min_width=12)
+    table.add_column("Effort", min_width=8)
+    table.add_column("Think", min_width=6)
+
+    # Token columns (right-aligned)
+    table.add_column("Prompt", justify="right", style="dim")
+    table.add_column("Completion", justify="right", style="dim")
+    table.add_column("Reasoning", justify="right", style="dim")
+    table.add_column("Total", justify="right", style="bold")
+
+    # Timing columns
+    table.add_column("TTFW (ms)", justify="right", style="yellow")
+    table.add_column("Latency (s)", justify="right", style="green")
+    table.add_column("Tokens/s", justify="right", style="cyan")
+
+    table.add_column("Status", min_width=8)
+
+    for r in results:
+        think_str = str(r.enable_thinking)
+        ttfw = r.time_to_first_word * 1000
+        latency = r.total_latency
+        tps = r.tokens_per_second
+
+        if r.success:
+            status = "[green]ok[/green]"
+        else:
+            status = "[red]FAIL[/red]"
+
+        table.add_row(
+            r.model,
+            r.effort,
+            think_str,
+            str(r.prompt_tokens),
+            str(r.completion_tokens),
+            str(r.reasoning_tokens) if r.reasoning_tokens else "-",
+            str(r.total_tokens),
+            f"{ttfw:.0f}",
+            f"{latency:.1f}",
+            f"{tps:.1f}" if r.success else "-",
+            status,
+        )
+
+    console.print()
+    console.print(table)
+
+
+def print_summary(results: list[Result], console: Console) -> None:
+    """Print a summary section highlighting best values per metric."""
+    successful = [r for r in results if r.success]
+    if not successful:
+        console.print("[red]No successful runs to summarize.[/red]")
+        return
+
+    console.print()
+    console.print("[bold yellow]Summary (best values highlighted)[/bold yellow]")
+    console.print("-" * 60)
+
+    # Find best values for each metric
+    best_ttfw = min((r for r in successful), key=lambda r: r.time_to_first_word)
+    best_latency = min((r for r in successful), key=lambda r: r.total_latency)
+    best_tps = max((r for r in successful), key=lambda r: r.tokens_per_second)
+
+    metrics = [
+        ("Time to First Word", best_ttfw, "lowest"),
+        ("Total Latency", best_latency, "lowest"),
+        ("Tokens/Second", best_tps, "highest"),
+    ]
+
+    for name, best, criterion in metrics:
+        console.print(
+            f"  {name} ({criterion}): "
+            f"[bold green]{best.time_to_first_word * 1000:.0f}ms / "
+            f"{best.total_latency:.1f}s / "
+            f"{best.tokens_per_second:.1f} tok/s[/bold green]  "
+            f"({best.model} | {best.effort} | think={best.enable_thinking})"
+        )
+
+    console.print()
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Generic LLM benchmarking utility.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    parser.add_argument(
+        "--model",
+        default=os.environ.get("OPENAI_MODEL", "o3-mini"),
+        help="Model to test (default: o3-mini)",
+    )
+    parser.add_argument(
+        "--models",
+        nargs="+",
+        help="One or more models to compare (overrides --model)",
+    )
+    parser.add_argument(
+        "--prompt",
+        default=(
+            "A robot steps into a room full of unsorted socks. "
+            "It picks up a red sock, then a blue sock, then a green sock. "
+            "It pauses, looks at the socks in its gripper, and says: "
+            "'These don't match.' The room goes silent. "
+            "What does the robot say next, and why?"
+        ),
+        help="Prompt to send (default: robot and socks story)",
+    )
+    parser.add_argument(
+        "--max-tokens",
+        type=int,
+        default=1000,
+        help="Max completion tokens (default: 1000)",
+    )
+    parser.add_argument(
+        "--efforts",
+        nargs="+",
+        choices=REASONING_EFFORTS,
+        help=f"Reasoning effort levels to test (default: all {REASONING_EFFORTS})",
+    )
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--only-thinking",
+        action="store_true",
+        help="Only run with enable_thinking=True (skip False)",
+    )
+    group.add_argument(
+        "--no-thinking",
+        action="store_true",
+        help="Only run with enable_thinking=False (skip True)",
+    )
+    args = parser.parse_args()
+
+    models = args.models if args.models else [args.model]
+    efforts = args.efforts if args.efforts else REASONING_EFFORTS
+    only_thinking = (
+        True if args.only_thinking else (False if args.no_thinking else None)
+    )
+
+    console = Console()
+    console.print(
+        f"[bold]Benchmarking[/bold] {len(models)} model(s) x "
+        f"{len(efforts)} effort(s) x "
+        f"{2 if only_thinking is None else 1} thinking mode(s)"
+    )
+    console.print(
+        f"[dim]Prompt: {args.prompt[:80]}...[/dim]"
+        if len(args.prompt) > 80
+        else f"[dim]Prompt: {args.prompt}[/dim]"
+    )
+    console.print()
+
+    client = AsyncOpenAI()
+    results = asyncio.run(run_all(client, models, args.prompt, efforts, only_thinking))
+    print_table(results, console)
+    print_summary(results, console)
+
+
+if __name__ == "__main__":
+    main()
