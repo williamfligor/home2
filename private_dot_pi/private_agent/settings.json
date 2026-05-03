@@ -15,7 +15,7 @@
     "enabled": true,
     "maxRetries": 3
   },
-  "lastChangelogVersion": "0.71.1",
+  "lastChangelogVersion": "0.72.0",
   "packages": [
     "npm:pi-markdown-preview",
     "npm:pi-context",
@@ -24,6 +24,10 @@
     "npm:pi-vim",
     "https://github.com/williamfligor/pi-duckfeed.git",
     "npm:pi-subagents"
+    "npm:pi-hashline-edit",
+    "npm:pi-context-prune",
+    "npm:pi-ask-user",
+    "npm:pi-interactive-shell"
   ],
   "defaultThinkingLevel": "medium",
   "hideThinkingBlock": false,
