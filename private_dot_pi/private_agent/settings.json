@@ -27,7 +27,9 @@
     "npm:pi-hashline-edit",
     "npm:pi-context-prune",
     "npm:pi-ask-user",
-    "npm:pi-interactive-shell"
+    "npm:pi-interactive-shell",
+    "npm:pi-review-loop",
+    "npm:pi-docparser"
   ],
   "defaultThinkingLevel": "medium",
   "hideThinkingBlock": false,
