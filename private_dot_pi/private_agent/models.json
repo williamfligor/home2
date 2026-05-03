@@ -1,0 +1,63 @@
+{
+  "providers": {
+    "llama-swap": {
+      "baseUrl": "http://10.0.0.6:9292/v1",
+      "api": "openai-completions",
+      "apiKey": "ollama",
+      "models": [
+        {
+          "id": "qwen3.6-27b",
+          "compat": {
+              "thinkingFormat": "qwen-chat-template"
+          },
+          "thinkingLevelMap": {
+              "minimal": null,
+              "low": null,
+              "medium": null,
+              "high": "high"
+          },
+          "reasoning": true
+        },
+        {
+          "id": "qwen3.6-35b-a3b",
+          "compat": {
+              "thinkingFormat": "qwen-chat-template"
+          },
+          "thinkingLevelMap": {
+              "minimal": null,
+              "low": null,
+              "medium": null,
+              "high": "high"
+          },
+          "reasoning": true
+        },
+        {
+          "id": "gemma-4-31B-it",
+          "compat": {
+              "thinkingFormat": "qwen-chat-template"
+          },
+          "thinkingLevelMap": {
+              "minimal": null,
+              "low": null,
+              "medium": null,
+              "high": "high"
+          },
+          "reasoning": true
+        },
+        {
+          "id": "gemma-4-26B-A4B",
+          "compat": {
+              "thinkingFormat": "qwen-chat-template"
+          },
+          "thinkingLevelMap": {
+              "minimal": null,
+              "low": null,
+              "medium": null,
+              "high": "high"
+          },
+          "reasoning": true
+        }
+      ]
+    }
+  }
+}
