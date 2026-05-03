@@ -88,8 +88,9 @@ async def run_one(
             "reasoning_effort": effort,
             "stream": True,
             "stream_options": {"include_usage": True},
+            "max_tokens": max_tokens,
         }
-        if enable_thinking is not None:
+        if enable_thinking:
             kwargs["extra_body"] = {
                 "chat_template_kwargs": {"enable_thinking": enable_thinking},
             }
