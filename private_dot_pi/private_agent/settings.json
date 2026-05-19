@@ -15,23 +15,18 @@
     "enabled": true,
     "maxRetries": 3
   },
-  "lastChangelogVersion": "0.72.0",
+  "lastChangelogVersion": "0.75.3",
   "packages": [
-    "npm:pi-markdown-preview",
-    "npm:pi-context",
-    "npm:@ifi/oh-pi-prompts",
-    "npm:pi-rewind",
-    "npm:pi-vim",
     "https://github.com/williamfligor/pi-duckfeed.git",
-    "npm:pi-subagents"
-    "npm:pi-hashline-edit",
-    "npm:pi-context-prune",
+    "npm:@ifi/oh-pi-prompts",
     "npm:pi-ask-user",
-    "npm:pi-interactive-shell",
-    "npm:pi-review-loop",
-    "npm:pi-docparser"
+    "npm:pi-context",
+    "npm:pi-markdown-preview",
+    "npm:pi-rewind",
+    "npm:pi-subagents",
+    "npm:pi-vim"
   ],
-  "defaultThinkingLevel": "medium",
+  "defaultThinkingLevel": "high",
   "hideThinkingBlock": false,
   "subagents": {
     "agentOverrides": {
