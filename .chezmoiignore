@@ -5,6 +5,7 @@
 
 **/.DS_Store
 
+.pi/agent/npm
 .pi/agent/private_auth.json
 .pi/agent/run-history.jsonl
 .pi/agent/git/
