@@ -17,12 +17,19 @@
   },
   "lastChangelogVersion": "0.75.3",
   "packages": [
-    "https://github.com/williamfligor/pi-duckfeed.git",
+    {
+      "source": "https://github.com/williamfligor/pi-duckfeed.git",
+      "extensions": [
+        "-find-extension.ts",
+        "-open-extension.ts"
+      ]
+    },
     "npm:@ifi/oh-pi-prompts",
     "npm:pi-ask-user",
     "npm:pi-context",
     "npm:pi-markdown-preview",
     "npm:pi-rewind",
+    "npm:pi-smart-fetch",
     "npm:pi-subagents",
     "npm:pi-vim"
   ],
