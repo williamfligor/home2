@@ -34,7 +34,7 @@
     "npm:pi-vim"
   ],
   "defaultThinkingLevel": "high",
-  "hideThinkingBlock": false,
+  "hideThinkingBlock": true,
   "subagents": {
     "agentOverrides": {
       "context-builder": {
