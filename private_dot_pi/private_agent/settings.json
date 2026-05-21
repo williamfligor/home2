@@ -18,6 +18,7 @@
   "lastChangelogVersion": "0.75.3",
   "packages": [
     "https://github.com/williamfligor/pi-duckfeed.git",
+    "npm:@ff-labs/pi-fff",
     "npm:@ifi/oh-pi-prompts",
     "npm:pi-ask-user",
     "npm:pi-context",
