@@ -1,0 +1,11 @@
+{
+  "registerToolOverrides": {
+    "read": true,
+    "grep": true,
+    "find": true,
+    "ls": true,
+    "bash": false,
+    "edit": false,
+    "write": true
+  }
+}
