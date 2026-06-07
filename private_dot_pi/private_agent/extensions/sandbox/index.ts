@@ -302,10 +302,10 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand("sandbox", {
-		description: "Manage sandbox extension (enable/disable/status)",
+		description: "Manage sandbox extension (enable/disable/on/off/status)",
 		handler: async (args, ctx) => {
 			const sub = args?.toLowerCase() ?? "status";
-			if (sub === "enable") {
+			if (sub === "enable" || sub === "on") {
 				if (!sandboxInitialized) {
 					// Attempt initialization using current config
 					try {
@@ -342,7 +342,7 @@ export default function (pi: ExtensionAPI) {
 				);
 				return;
 			}
-			if (sub === "disable") {
+			if (sub === "disable" || sub === "off") {
 				sandboxEnabled = false;
 				if (sandboxInitialized) {
 					try {
