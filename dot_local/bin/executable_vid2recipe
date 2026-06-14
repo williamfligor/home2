@@ -1,0 +1,280 @@
+#!/usr/bin/env -S uv run --script
+#
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["yt-dlp", "openai", "httpx"]
+# ///
+
+"""
+Recipe Transcriber: Download audio from a video, transcribe it,
+and reformat the transcription into a recipe.
+
+Usage:
+    ./recipe_transcriber.py <video_url>
+
+Requirements:
+    OPENAI_API_KEY must be set in your environment
+    ffmpeg will be auto-downloaded for macOS if not found on PATH
+"""
+
+import argparse
+import io
+import os
+import platform
+import shutil
+import stat
+import subprocess
+import sys
+import tempfile
+import zipfile
+from pathlib import Path
+
+import httpx
+import yt_dlp
+from openai import OpenAI
+
+
+# ── ffmpeg bootstrap ─────────────────────────────────────────────────────────
+
+FFMPEG_DOWNLOAD_URL = (
+    "https://evermeet.cx/ffmpeg/ffmpeg-125019-g6698195dc43.zip"
+)
+FFMPEG_DIR = Path.home() / ".recipe_transcriber"
+
+
+def find_ffmpeg() -> str:
+    """Return path to ffmpeg, downloading it if necessary."""
+    # 1. Check PATH first
+    found = shutil.which("ffmpeg")
+    if found:
+        print(f"✅ Found ffmpeg on PATH: {found}")
+        return found
+
+    # 2. Check previously downloaded copy
+    local_ffmpeg = FFMPEG_DIR / "ffmpeg"
+    if local_ffmpeg.exists():
+        print(f"✅ Found previously downloaded ffmpeg: {local_ffmpeg}")
+        return str(local_ffmpeg)
+
+    # 3. Download from evermeet.cx (macOS static binary)
+    if platform.system() != "Darwin":
+        print("❌ ffmpeg not found on PATH and auto-download is only supported on macOS.")
+        print("   Please install ffmpeg manually:")
+        print("     Linux:   sudo apt install ffmpeg")
+        print("     Windows: winget install ffmpeg")
+        sys.exit(1)
+
+    print(f"📥 ffmpeg not found — downloading from evermeet.cx...")
+    FFMPEG_DIR.mkdir(parents=True, exist_ok=True)
+
+    zip_path = FFMPEG_DIR / "ffmpeg.zip"
+    try:
+        with httpx.stream("GET", FFMPEG_DOWNLOAD_URL, follow_redirects=True) as resp:
+            resp.raise_for_status()
+            total = int(resp.headers.get("content-length", 0))
+            downloaded = 0
+            with open(zip_path, "wb") as f:
+                for chunk in resp.iter_bytes(chunk_size=8192):
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if total:
+                        pct = downloaded / total * 100
+                        print(f"\r   Downloading: {pct:.0f}%", end="", flush=True)
+        print()  # newline after progress
+    except httpx.HTTPError as e:
+        print(f"\n❌ Failed to download ffmpeg: {e}")
+        sys.exit(1)
+
+    # Extract the ffmpeg binary from the zip
+    print("📦 Extracting ffmpeg binary...")
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        # evermeet.cx zips contain a single "ffmpeg" binary at the root
+        members = zf.namelist()
+        # Find the ffmpeg binary entry (could be "ffmpeg" or in a subdirectory)
+        ffmpeg_entry = None
+        for name in members:
+            if name.endswith("ffmpeg") and not name.startswith("__MACOSX"):
+                ffmpeg_entry = name
+                break
+        if ffmpeg_entry is None:
+            print(f"❌ Could not find ffmpeg binary in zip. Contents: {members}")
+            sys.exit(1)
+
+        with zf.open(ffmpeg_entry) as src, open(local_ffmpeg, "wb") as dst:
+            shutil.copyfileobj(src, dst)
+
+    # Make it executable
+    local_ffmpeg.chmod(local_ffmpeg.stat().st_mode | stat.S_IEXEC)
+
+    # Clean up the zip
+    zip_path.unlink(missing_ok=True)
+
+    print(f"✅ ffmpeg installed to: {local_ffmpeg}")
+    return str(local_ffmpeg)
+
+
+# ── Step 1: Download audio from video ────────────────────────────────────────
+
+def download_audio(url: str, output_dir: str, ffmpeg_path: str) -> str:
+    """Download audio from a video URL and return the path to the audio file."""
+    output_path = os.path.join(output_dir, "audio.%(ext)s")
+
+    ydl_opts = {
+        "format": "bestaudio/best",
+        "outtmpl": output_path,
+        "ffmpeg_location": os.path.dirname(ffmpeg_path),
+        "postprocessors": [
+            {
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "mp3",
+                "preferredquality": "192",
+            }
+        ],
+        "quiet": False,
+        "no_warnings": True,
+    }
+
+    print(f"📥 Downloading audio from: {url}")
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([url])
+
+    # yt-dlp replaces %(ext)s with the actual extension after post-processing
+    result_path = os.path.join(output_dir, "audio.mp3")
+    if not os.path.exists(result_path):
+        # Fallback: find whatever was produced
+        candidates = list(Path(output_dir).glob("audio.*"))
+        if not candidates:
+            raise FileNotFoundError("Audio file not found after download.")
+        result_path = str(candidates[0])
+
+    print(f"✅ Audio saved to: {result_path}")
+    return result_path
+
+
+# ── Step 2: Transcribe audio via OpenAI ──────────────────────────────────────
+
+def transcribe_audio(audio_path: str) -> str:
+    """Transcribe an audio file using OpenAI's transcription API."""
+    client = OpenAI()  # Uses OPENAI_API_KEY env var
+
+    # OpenAI has a 25 MB file size limit; warn if the file is large
+    file_size_mb = os.path.getsize(audio_path) / (1024 * 1024)
+    if file_size_mb > 25:
+        print(f"⚠️  File is {file_size_mb:.1f} MB — OpenAI's limit is 25 MB.")
+        print("   Consider splitting the audio or compressing to a lower bitrate.")
+        sys.exit(1)
+
+    print(f"🎵 Transcribing audio ({file_size_mb:.1f} MB)...")
+    with open(audio_path, "rb") as audio_file:
+        transcription = client.audio.transcriptions.create(
+            model="whisper-1",
+            file=audio_file,
+            response_format="text",
+        )
+
+    print("✅ Transcription complete.")
+    return transcription
+
+
+# ── Step 3: Reformat transcription into a recipe ────────────────────────────
+
+RECIPE_PROMPT = """\
+You are a skilled culinary assistant. The following text is a raw transcription \
+of a cooking video. Your job is to extract and reformat it into a clean, \
+well-structured recipe.
+
+If the transcription contains a recipe, produce output in this exact format:
+
+## 📖 [Recipe Title]
+
+**Prep time:** [e.g. 15 min]
+**Cook time:** [e.g. 30 min]
+**Servings:** [e.g. 4]
+
+### Ingredients
+- [ingredient with quantity, one per line]
+
+### Instructions
+1. [step by step, numbered]
+
+### Notes / Tips
+- [any chef's tips, substitutions, or variations mentioned]
+
+If the transcription does NOT contain a recipe (e.g. it's unrelated to cooking), \
+simply say: "⚠️ This video does not appear to contain a recipe."
+
+Here is the transcription:
+
+---
+{transcript}
+---
+"""
+
+
+def format_as_recipe(transcript: str) -> str:
+    """Use an OpenAI chat model to reformat a transcript into a recipe."""
+    client = OpenAI()
+
+    print("👨‍🍳 Reformatting transcription into a recipe...")
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {
+                "role": "user",
+                "content": RECIPE_PROMPT.format(transcript=transcript),
+            }
+        ],
+        temperature=0.3,
+    )
+
+    recipe = response.choices[0].message.content
+    print("✅ Recipe generated.")
+    return recipe
+
+
+# ── Main ─────────────────────────────────────────────────────────────────────
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Download a video's audio, transcribe it, and format as a recipe."
+    )
+    parser.add_argument(
+        "url",
+        help="URL of the video to transcribe (YouTube, etc.)",
+    )
+    args = parser.parse_args()
+
+    # Verify API key is set
+    if not os.environ.get("OPENAI_API_KEY"):
+        print("❌ OPENAI_API_KEY environment variable is not set.")
+        print("   Export it first:  export OPENAI_API_KEY='sk-...'")
+        sys.exit(1)
+
+    # Ensure ffmpeg is available
+    ffmpeg_path = find_ffmpeg()
+
+    # Work in a temporary directory so we clean up automatically
+    with tempfile.TemporaryDirectory(prefix="recipe_transcriber_") as tmpdir:
+        # Step 1 — Download
+        audio_path = download_audio(args.url, tmpdir, ffmpeg_path)
+
+        # Step 2 — Transcribe
+        transcript = transcribe_audio(audio_path)
+
+        # Step 3 — Reformat as recipe
+        recipe = format_as_recipe(transcript)
+
+    # Output the final recipe
+    print("\n" + "=" * 60)
+    print(recipe)
+    print("=" * 60)
+
+    # Also save to a file
+    output_file = "recipe_output.md"
+    with open(output_file, "w", encoding="utf-8") as f:
+        f.write(recipe)
+    print(f"\n💾 Recipe saved to: {output_file}")
+
+
+if __name__ == "__main__":
+    main()
