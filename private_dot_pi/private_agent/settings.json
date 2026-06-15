@@ -1,6 +1,6 @@
 {
   "defaultProvider": "llama-swap",
-  "defaultModel": "qwen3.6-35b-a3b",
+  "defaultModel": "qwen3.6-27b",
   "theme": "light",
   "enableSkillCommands": true,
   "npmCommand": [
@@ -15,13 +15,12 @@
     "enabled": true,
     "maxRetries": 3
   },
-  "lastChangelogVersion": "0.75.3",
+  "lastChangelogVersion": "0.79.3",
   "packages": [
     "https://github.com/williamfligor/pi-duckfeed.git",
     "npm:@ff-labs/pi-fff",
-    "npm:@ifi/oh-pi-prompts",
+    "npm:@juicesharp/rpiv-ask-user-question",
     "npm:pi-ask-user",
-    "npm:pi-context",
     "npm:pi-markdown-preview",
     "npm:pi-rewind",
     "npm:pi-subagents",
@@ -36,15 +35,13 @@
         "model": "llama-swap/qwen3.6-35b-a3b"
       },
       "planner": {
-        "model": "llama-swap/qwen3.6-35b-a3b",
-        "thinking": "medium"
+        "model": "llama-swap/qwen3.6-35b-a3b"
       },
       "researcher": {
         "model": "llama-swap/qwen3.6-35b-a3b"
       },
       "reviewer": {
-        "model": "llama-swap/qwen3.6-35b-a3b",
-        "thinking": "medium"
+        "model": "llama-swap/qwen3.6-35b-a3b"
       },
       "scout": {
         "model": "llama-swap/qwen3.6-35b-a3b"
