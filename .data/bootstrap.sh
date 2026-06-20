@@ -16,6 +16,7 @@ then
 fi
 
 # Install Chezmoi
+export BINDIR=~/.local/bin/
 curl -sfL https://git.io/chezmoi | sh
 
 git config --global user.email "williamtfligor@gmail.com"
