@@ -1,0 +1,293 @@
+#!/usr/bin/env python3
+"""
+Copy a file or folder from GitHub and prepend SPDX-style headers to each file.
+Usage:
+    python gh_copy.py <github_url> <output_dir>
+Example:
+    python gh_copy.py https://github.com/mitsuhiko/agent-stuff/blob/main/pi-extensions/uv.ts ./output
+    python gh_copy.py https://github.com/mitsuhiko/agent-stuff/tree/main/pi-extensions ./output
+"""
+
+import sys
+import os
+import re
+import json
+import urllib.request
+import urllib.error
+from pathlib import Path
+from datetime import datetime
+
+# ---------------------------------------------------------------------------
+# Comment styles keyed by file extension
+# ---------------------------------------------------------------------------
+COMMENT_STYLES = {
+    # Hash-style
+    "py": ("#", None, None),
+    "rb": ("#", None, None),
+    "sh": ("#", None, None),
+    "bash": ("#", None, None),
+    "zsh": ("#", None, None),
+    "r": ("#", None, None),
+    "pl": ("#", None, None),
+    "yaml": ("#", None, None),
+    "yml": ("#", None, None),
+    "toml": ("#", None, None),
+    "conf": ("#", None, None),
+    "dockerfile": ("#", None, None),
+    "makefile": ("#", None, None),
+    # Slash-style
+    "ts": ("//", None, None),
+    "tsx": ("//", None, None),
+    "js": ("//", None, None),
+    "jsx": ("//", None, None),
+    "mjs": ("//", None, None),
+    "cjs": ("//", None, None),
+    "java": ("//", None, None),
+    "kt": ("//", None, None),
+    "swift": ("//", None, None),
+    "go": ("//", None, None),
+    "rs": ("//", None, None),
+    "c": ("//", None, None),
+    "cpp": ("//", None, None),
+    "cc": ("//", None, None),
+    "h": ("//", None, None),
+    "hpp": ("//", None, None),
+    "cs": ("//", None, None),
+    "dart": ("//", None, None),
+    "scala": ("//", None, None),
+    "groovy": ("//", None, None),
+    "php": ("//", None, None),
+    # Block-style (open, line_prefix, close)
+    "css": ("/*", " *", " */"),
+    "scss": ("/*", " *", " */"),
+    "sass": ("/*", " *", " */"),
+    "less": ("/*", " *", " */"),
+    # XML/HTML style
+    "html": ("<!--", "   ", "-->"),
+    "htm": ("<!--", "   ", "-->"),
+    "xml": ("<!--", "   ", "-->"),
+    "vue": ("<!--", "   ", "-->"),
+    "svelte": ("<!--", "   ", "-->"),
+    # Lua
+    "lua": ("--", None, None),
+    # SQL
+    "sql": ("--", None, None),
+    # Haskell / Elm
+    "hs": ("--", None, None),
+    "elm": ("--", None, None),
+}
+
+SKIP_EXTENSIONS = {
+    "png", "jpg", "jpeg", "gif", "svg", "ico", "woff", "woff2",
+    "ttf", "eot", "otf", "pdf", "zip", "tar", "gz", "lock",
+    "map", "min.js", "min.css",
+}
+
+
+def gh_api(url: str) -> dict | list:
+    """Make a GitHub API GET request, returning parsed JSON."""
+    req = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json",
+                                               "User-Agent": "gh-copy-script/1.0"})
+    token = os.environ.get("GITHUB_TOKEN")
+    if token:
+        req.add_header("Authorization", f"Bearer {token}")
+    with urllib.request.urlopen(req) as resp:
+        return json.loads(resp.read().decode())
+
+
+def parse_github_url(url: str) -> tuple[str, str, str, str, str]:
+    """
+    Parse a GitHub URL into (owner, repo, ref, path, kind).
+    kind is 'blob' (file) or 'tree' (directory).
+    """
+    pattern = r"https://github\.com/([^/]+)/([^/]+)/(blob|tree)/([^/]+)/(.*)"
+    m = re.match(pattern, url.rstrip("/"))
+    if not m:
+        raise ValueError(f"Cannot parse GitHub URL: {url}")
+    owner, repo, kind, ref, path = m.groups()
+    return owner, repo, ref, path, kind
+
+
+def get_license(owner: str, repo: str) -> str:
+    """Fetch the SPDX license identifier for a repo."""
+    try:
+        data = gh_api(f"https://api.github.com/repos/{owner}/{repo}/license")
+        return data.get("license", {}).get("spdx_id", "UNKNOWN")
+    except Exception:
+        return "UNKNOWN"
+
+
+def get_file_commit(owner: str, repo: str, ref: str, path: str) -> tuple[str, str]:
+    """Return (short_sha, iso_date) of the most recent commit touching path."""
+    try:
+        url = (f"https://api.github.com/repos/{owner}/{repo}/commits"
+               f"?path={path}&sha={ref}&per_page=1")
+        data = gh_api(url)
+        if data:
+            sha = data[0]["sha"][:7]
+            date_str = data[0]["commit"]["committer"]["date"]  # ISO 8601
+            date = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+            return sha, date.strftime("%Y-%m-%d")
+    except Exception:
+        pass
+    return "unknown", datetime.utcnow().strftime("%Y-%m-%d")
+
+
+def get_repo_author(owner: str, repo: str) -> str:
+    """Best-effort: return display name of the repo owner."""
+    try:
+        data = gh_api(f"https://api.github.com/users/{owner}")
+        return data.get("name") or owner
+    except Exception:
+        return owner
+
+
+def build_header(lines: list[str], ext: str) -> str:
+    """Wrap header lines in the correct comment style for ext."""
+    style = COMMENT_STYLES.get(ext.lower())
+    if style is None:
+        # Default to hash
+        return "\n".join(f"# {l}" if l else "#" for l in lines) + "\n"
+
+    open_tok, line_prefix, close_tok = style
+
+    if close_tok is None:
+        # Single-line comment style
+        return "\n".join(f"{open_tok} {l}" if l else open_tok for l in lines) + "\n"
+    else:
+        # Block comment style
+        body = "\n".join(f"{line_prefix} {l}" if l else line_prefix for l in lines)
+        return f"{open_tok}\n{body}\n{close_tok}\n"
+
+
+def make_header_lines(
+    file_url: str,
+    repo_url: str,
+    sha: str,
+    date: str,
+    author: str,
+    spdx_id: str,
+) -> list[str]:
+    sep = "-" * 76
+    return [
+        sep,
+        f"Source:  {file_url}",
+        f"Origin:  {repo_url}",
+        f"Commit:  {sha}  ({date})",
+        f"SPDX-FileCopyrightText: {author}",
+        f"SPDX-License-Identifier: {spdx_id}",
+        sep,
+    ]
+
+
+def prepend_header(content: bytes, header: str, filename: str) -> bytes:
+    """Prepend header, preserving shebangs."""
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError:
+        return content  # Binary file — skip
+
+    lines = text.splitlines(keepends=True)
+
+    # Preserve shebang on line 1
+    if lines and lines[0].startswith("#!"):
+        return (lines[0] + header + "".join(lines[1:])).encode("utf-8")
+
+    return (header + text).encode("utf-8")
+
+
+def fetch_and_write(
+    owner: str,
+    repo: str,
+    ref: str,
+    path: str,
+    out_dir: Path,
+    spdx_id: str,
+    author: str,
+    repo_url: str,
+) -> None:
+    """Fetch a single file from GitHub, prepend header, write to out_dir."""
+    ext = Path(path).suffix.lstrip(".")
+    filename = Path(path).name
+
+    if ext.lower() in SKIP_EXTENSIONS or not ext:
+        print(f"  [skip] {path}")
+        return
+
+    # Fetch raw content
+    raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{ref}/{path}"
+    try:
+        req = urllib.request.Request(raw_url, headers={"User-Agent": "gh-copy-script/1.0"})
+        token = os.environ.get("GITHUB_TOKEN")
+        if token:
+            req.add_header("Authorization", f"Bearer {token}")
+        with urllib.request.urlopen(req) as resp:
+            content = resp.read()
+    except urllib.error.HTTPError as e:
+        print(f"  [error] Could not fetch {path}: {e}")
+        return
+
+    sha, date = get_file_commit(owner, repo, ref, path)
+    file_url = f"https://github.com/{owner}/{repo}/blob/{ref}/{path}"
+    header_lines = make_header_lines(file_url, repo_url, sha, date, author, spdx_id)
+    header = build_header(header_lines, ext)
+
+    final = prepend_header(content, header, filename)
+
+    # Mirror directory structure under out_dir
+    out_path = out_dir / path
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_bytes(final)
+    print(f"  [ok]   {path}  (commit {sha}, {date})")
+
+
+def list_tree(owner: str, repo: str, ref: str, path: str) -> list[str]:
+    """Recursively list all blob paths under a tree path."""
+    url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}?ref={ref}"
+    data = gh_api(url)
+    paths = []
+    if isinstance(data, list):
+        for item in data:
+            if item["type"] == "file":
+                paths.append(item["path"])
+            elif item["type"] == "dir":
+                paths.extend(list_tree(owner, repo, ref, item["path"]))
+    elif isinstance(data, dict) and data.get("type") == "file":
+        paths.append(data["path"])
+    return paths
+
+
+def main() -> None:
+    if len(sys.argv) < 3:
+        print(__doc__)
+        sys.exit(1)
+
+    github_url = sys.argv[1]
+    out_dir = Path(sys.argv[2])
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    owner, repo, ref, path, kind = parse_github_url(github_url)
+    repo_url = f"https://github.com/{owner}/{repo}"
+
+    print(f"Fetching metadata for {owner}/{repo} ...")
+    spdx_id = get_license(owner, repo)
+    author = get_repo_author(owner, repo)
+    print(f"  License : {spdx_id}")
+    print(f"  Author  : {author}")
+
+    if kind == "blob":
+        file_paths = [path]
+    else:
+        print(f"Listing tree at {path} ...")
+        file_paths = list_tree(owner, repo, ref, path)
+
+    print(f"Processing {len(file_paths)} file(s) ...\n")
+    for fp in file_paths:
+        fetch_and_write(owner, repo, ref, fp, out_dir, spdx_id, author, repo_url)
+
+    print(f"\nDone. Files written to: {out_dir.resolve()}")
+
+
+if __name__ == "__main__":
+    main()
+
