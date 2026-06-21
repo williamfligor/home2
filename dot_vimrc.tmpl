@@ -33,7 +33,9 @@ if has('nvim')
     inoremap <silent> <c-.> <C-o>:lua require('sidekick.cli').focus()<CR>
     xnoremap <silent> <c-.> :lua require('sidekick.cli').focus()<CR>
     " Sidekick Toggle CLI
-    nnoremap <leader>aa :lua require('sidekick.cli').toggle()<CR>
+    nnoremap <leader>aa :lua require('sidekick.cli').toggle({name = 'pi'})<CR>
+    " New CLI
+    nnoremap <leader>an :lua require('sidekick.cli').new({name = 'pi'})<CR>
     " Select CLI
     nnoremap <leader>as :lua require('sidekick.cli').select()<CR>
     " Detach a CLI Session
@@ -48,8 +50,6 @@ if has('nvim')
     " Sidekick Select Prompt (normal, visual)
     nnoremap <leader>ap :lua require('sidekick.cli').prompt()<CR>
     xnoremap <leader>ap :lua require('sidekick.cli').prompt()<CR>
-    " Sidekick Toggle Claude
-    nnoremap <leader>ac :lua require('sidekick.cli').toggle({name = 'claude', focus = true})<CR>
 endif
 
 " Remove trailing whitespace
