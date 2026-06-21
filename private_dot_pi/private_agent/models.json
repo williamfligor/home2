@@ -1,7 +1,7 @@
 {
   "providers": {
     "llama-swap": {
-      "baseUrl": "http://10.0.0.6:9292/v1",
+      "baseUrl": "https://llama.3r3.net/v1",
       "api": "openai-completions",
       "apiKey": "ollama",
       "models": [
