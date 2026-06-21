@@ -1,0 +1,157 @@
+#!/usr/bin/env -S uv run --script
+#
+# /// script
+# requires-python = ">=3.10"
+# ///
+"""Install macOS .app bundles from mise http: backend installs.
+
+Reads mise install directories for known macOS applications and
+rsyncs the .app bundles into ~/Applications/. All archives are
+downloaded and extracted by mise — this script only handles the
+macOS-specific .app installation step.
+"""
+
+import json
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+
+DEST = Path.home() / "Applications"
+
+# macOS apps managed by mise http: backend
+# install_type:
+#   "zip" — mise extracts the archive and the .app bundle is in the install dir
+#   "dmg" — mise stores the .dmg file; we mount it to extract the .app
+APPS = {
+    "http:ice": {"install_type": "zip", "app_name": "Ice"},
+    "http:xbar": {"install_type": "zip", "app_name": "xbar"},
+    "http:ghostty": {"install_type": "dmg", "app_name": "Ghostty"},
+    "http:rectangle": {"install_type": "dmg", "app_name": "Rectangle"},
+    "http:stats": {"install_type": "dmg", "app_name": "Stats"},
+}
+
+
+def find_app_bundle(path: Path, app_name: str) -> Path | None:
+    """Locate <app_name>.app in path.
+
+    Handles two layouts:
+      - The install path *is* the .app bundle (Contents/ at root)
+      - The install path contains <name>.app/ as a subdirectory
+    """
+    # Check if path itself is the .app bundle
+    if (path / "Contents" / "Info.plist").is_file():
+        return path
+
+    # Check for <app_name>.app subdirectory
+    candidate = path / f"{app_name}.app"
+    if candidate.is_dir():
+        return candidate
+
+    # Search any top-level subdirectories
+    for child in path.iterdir():
+        if child.is_dir() and child.name.endswith(".app"):
+            return child
+
+    return None
+
+
+def install_dmg(install_path: Path, app_name: str) -> bool:
+    """Install from a .dmg stored in mise's install directory."""
+    dmg_files = list(install_path.glob("*.dmg"))
+    if not dmg_files:
+        print(f"  No .dmg file found in {install_path}", file=sys.stderr)
+        return False
+
+    dmg_path = dmg_files[0]
+    mount_point = tempfile.mkdtemp(prefix=f"{app_name.lower()}-dmg-")
+
+    try:
+        subprocess.run(
+            ["hdiutil", "attach", str(dmg_path),
+             "-nobrowse", "-mountpoint", mount_point],
+            check=True, capture_output=True,
+        )
+
+        mounted_app = Path(mount_point) / f"{app_name}.app"
+        if not mounted_app.is_dir():
+            print(f"  {app_name}.app not found in mounted image", file=sys.stderr)
+            return False
+
+        _install_app(mounted_app, app_name)
+        return True
+    except subprocess.CalledProcessError as exc:
+        print(f"  Failed to mount {dmg_path.name}: {exc}", file=sys.stderr)
+        return False
+    finally:
+        subprocess.run(["hdiutil", "detach", mount_point],
+                       capture_output=True)
+        shutil.rmtree(mount_point, ignore_errors=True)
+
+
+def install_zip(install_path: Path, app_name: str) -> bool:
+    """Install from a mise-extracted zip archive."""
+    app_bundle = find_app_bundle(install_path, app_name)
+    if app_bundle is None:
+        print(f"  {app_name}.app not found in {install_path}", file=sys.stderr)
+        return False
+    _install_app(app_bundle, app_name)
+    return True
+
+
+def _install_app(src: Path, app_name: str) -> None:
+    """Rsync a .app bundle to ~/Applications/."""
+    dest = DEST / f"{app_name}.app"
+    if dest.exists():
+        subprocess.run(["rm", "-rf", str(dest)], check=True)
+    subprocess.run(["rsync", "-a", f"{src}/", f"{dest}/"], check=True)
+    print(f"  Installed {app_name}.app")
+
+
+def main() -> int:
+    DEST.mkdir(parents=True, exist_ok=True)
+
+    # Build a map of tool_key -> install_path from mise
+    try:
+        mise_data = json.loads(
+            subprocess.check_output(["mise", "ls", "--json"], text=True)
+        )
+    except (subprocess.CalledProcessError, json.JSONDecodeError) as exc:
+        print(f"Failed to list mise tools: {exc}", file=sys.stderr)
+        return 1
+
+    installed = 0
+    for tool_key, info in APPS.items():
+        entries = mise_data.get(tool_key)
+        if not entries:
+            print(f"{info['app_name']}: not installed in mise, skipping")
+            continue
+
+        install_path_str = entries[0].get("install_path", "")
+        if not install_path_str:
+            print(f"{info['app_name']}: not yet installed (mise where would fetch it)")
+            continue
+
+        install_path = Path(install_path_str)
+        if not install_path.is_dir():
+            print(f"{info['app_name']}: install path missing, skipping")
+            continue
+
+        print(f"Installing {info['app_name']}...")
+
+        if info["install_type"] == "dmg":
+            ok = install_dmg(install_path, info["app_name"])
+        else:
+            ok = install_zip(install_path, info["app_name"])
+
+        if ok:
+            installed += 1
+
+    print(f"=== {installed} macOS app(s) installed ===")
+    return 0 if installed > 0 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

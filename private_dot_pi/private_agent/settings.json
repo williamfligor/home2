@@ -1,11 +1,8 @@
 {
-  "defaultProvider": "llama-swap",
-  "defaultModel": "qwen3.6-27b",
+  "defaultProvider": "opencode-go",
+  "defaultModel": "deepseek-v4-flash",
   "theme": "light",
   "enableSkillCommands": true,
-  "npmCommand": [
-    "bun"
-  ],
   "compaction": {
     "enabled": true,
     "reserveTokens": 19200,
@@ -15,12 +12,11 @@
     "enabled": true,
     "maxRetries": 3
   },
-  "lastChangelogVersion": "0.79.3",
+  "lastChangelogVersion": "0.79.9",
   "packages": [
     "https://github.com/williamfligor/pi-duckfeed.git",
     "npm:@ff-labs/pi-fff",
     "npm:@juicesharp/rpiv-ask-user-question",
-    "npm:@juicesharp/rpiv-btw",
     "npm:cc-safety-net",
     "npm:pi-markdown-preview",
     "npm:pi-rewind",

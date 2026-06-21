@@ -24,7 +24,6 @@
         "allowWrite": [
             ".",
             "~/.npm",
-            "~/.bun",
             "~/.cache/uv/",
             "/tmp"
         ],

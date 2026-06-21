@@ -10,7 +10,7 @@ if ! command -v gcc &>/dev/null; then
     exit 0
 fi
 
-AUTOSSH_DIR="$HOME/.local/share/autossh"
+AUTOSSH_DIR="$HOME/.local/share/mise/installs/http-autossh/latest"
 AUTOSSH_BIN="$HOME/.local/bin/autossh"
 
 if [ ! -d "$AUTOSSH_DIR" ]; then
