@@ -28,3 +28,14 @@ alias lg="lazygit"
 alias speedtest="wget -O /dev/null http://cachefly.cachefly.net/100mb.test";
 alias ag="rg"
 
+# chezmoi aliases
+alias cz="chezmoi"
+alias cza="chezmoi add"
+alias czap="chezmoi apply"
+alias czs="chezmoi status"
+alias czd="chezmoi diff"
+alias czra="chezmoi re-add"
+alias czm="chezmoi merge"
+alias czma="chezmoi merge-all"
+alias czet="chezmoi execute-template"
+
