@@ -29,6 +29,14 @@ plugins=(zsh-syntax-highlighting git vi-mode zsh-you-should-use)
 
 source $ZSH/oh-my-zsh.sh
 
+# Show current ZMX session in the right prompt
+function prompt_my_zmx_session() {
+  if [[ -n $ZMX_SESSION ]]; then
+    p10k segment -b '%k' -f '%f' -t "[$ZMX_SESSION]"
+  fi
+}
+POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(my_zmx_session)
+
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
@@ -43,8 +51,6 @@ unsetopt correct_all
 
 # ------------------------ Includes --------------------------------
 
-{{ template "env.sh" . }}
-
 {{ if eq .chezmoi.os "windows" -}}
 export PATH=$PATH:/c/Program\ Files/Oracle/VirtualBox
 {{ end -}}
@@ -55,6 +61,14 @@ export PATH=$PATH:/c/Program\ Files/Oracle/VirtualBox
 
 # Load ~/.local.sh if found
 [[ ! -f ~/.local.sh ]] || source ~/.local.sh
+
+# ------------------------ ZMX cwd tracking --------------------------------
+# Save cwd on each prompt so zmx-local-new can start in the right directory
+autoload -Uz add-zsh-hook
+zmx-save-cwd() {
+  printf '%s' "$PWD" >| "${XDG_CACHE_HOME:-$HOME/.cache}/zmx-cwd"
+}
+add-zsh-hook precmd zmx-save-cwd
 
 # ------------------------ Key Bindings --------------------------------
 bindkey -M vicmd '^[' undefined-key

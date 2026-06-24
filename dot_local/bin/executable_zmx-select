@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# ZMX session picker — fzf over zmx list with preview
+set -euo pipefail
+
+display=$(zmx list 2>/dev/null | while IFS=$'\t' read -r name pid clients created dir; do
+  name=${name#*name=}
+  pid=${pid#*pid=}
+  clients=${clients#*clients=}
+  dir=${dir#*start_dir=}
+  printf "%-20s  pid:%-8s  clients:%-2s  %s\n" "$name" "$pid" "$clients" "$dir"
+done)
+
+if [[ -z "$display" ]]; then
+  echo "No ZMX sessions found." >&2
+  exit 1
+fi
+
+output=$(fzf \
+  --print-query \
+  --expect=ctrl-n \
+  --height=80% \
+  --reverse \
+  --prompt="zmx> " \
+  --header="Enter: select | Ctrl-N: create new" \
+  --preview='zmx history {1}' \
+  --preview-window=right:60%:follow \
+  <<< "$display"
+)
+rc=$?
+
+query=$(echo "$output"  | sed -n '1p')
+key=$(echo "$output"    | sed -n '2p')
+selected=$(echo "$output" | sed -n '3p')
+
+if [[ "$key" == "ctrl-n" && -n "$query" ]]; then
+  session_name="$query"
+elif [[ $rc -eq 0 && -n "$selected" ]]; then
+  session_name=$(echo "$selected" | awk '{print $1}')
+elif [[ -n "$query" ]]; then
+  session_name="$query"
+else
+  exit 130
+fi
+
+exec zmx attach "$session_name"
