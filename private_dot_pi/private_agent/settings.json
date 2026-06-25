@@ -20,11 +20,11 @@
     "https://github.com/williamfligor/pi-duckfeed.git",
     "npm:@ff-labs/pi-fff",
     "npm:@juicesharp/rpiv-ask-user-question",
-    "npm:pi-ask-user",
+    "npm:@juicesharp/rpiv-btw",
+    "npm:cc-safety-net",
     "npm:pi-markdown-preview",
     "npm:pi-rewind",
     "npm:pi-subagents",
-    "npm:pi-tool-display",
     "npm:pi-vim"
   ],
   "defaultThinkingLevel": "high",
