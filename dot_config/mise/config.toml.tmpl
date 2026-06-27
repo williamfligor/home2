@@ -1,0 +1,229 @@
+# ── Runtimes ─────────────────────────────────────────────────
+[tools]
+go = "latest"
+node = "lts"
+rust = "latest"
+uv = "latest"
+
+# ── CLI tools ────────────────────────────────────────────────
+fzf = "latest"
+tmux = "latest"
+neovim = "latest"
+pandoc = "latest"
+
+# ── Go tools ─────────────────────────────────────────────────
+lazygit = "latest"
+lazydocker = "latest"
+dive = "latest"
+glab = "latest"
+yq = "latest"
+"github:simeji/jid" = "latest"
+"github:ramonvermeulen/whosthere" = "latest"
+
+# ── Rust / aqua tools ───────────────────────────────────────
+fd = "latest"
+zoxide = "latest"
+yazi = "latest"
+ripgrep = "latest"
+eza = "latest"
+delta = "latest"
+bat = "latest"
+zellij = "latest"
+ast-grep = "latest"
+difftastic = "latest"
+
+# ── GitHub-only (not in mise registry) ───────────────────────
+"github:samwho/spacer" = "latest"
+"github:elkowar/pipr" = "latest"
+"github:tldr-pages/tlrc" = "latest"
+"github:fujiapple852/trippy" = "latest"
+"github:neurosnap/zmx" = "latest"
+"github:tree-sitter/tree-sitter" = "latest"
+
+# ── NPM packages ─────────────────────────────────────────────
+"npm:@earendil-works/pi-coding-agent" = "latest"
+
+# ── Zsh plugins ────────────────────────────────────────────
+"http:oh-my-zsh" = {
+  version = "62afbdebb96bf91c044a92b75d86f85a67da67a7",
+  url = "https://github.com/ohmyzsh/ohmyzsh/archive/62afbdebb96bf91c044a92b75d86f85a67da67a7.zip",
+  strip_components = 1,
+}
+"http:zsh-syntax-highlighting" = {
+  version = "5eb677bb0fa9a3e60f0eff031dc13926e093df92",
+  url = "https://github.com/zsh-users/zsh-syntax-highlighting/archive/5eb677bb0fa9a3e60f0eff031dc13926e093df92.tar.gz",
+  strip_components = 1,
+}
+"http:vi-mode" = {
+  version = "2f84dd922cdcceff62ef40ea1a5495c30dcbb280",
+  url = "https://github.com/sineto/vi-mode/archive/2f84dd922cdcceff62ef40ea1a5495c30dcbb280.tar.gz",
+  strip_components = 1,
+}
+"http:zsh-you-should-use" = {
+  version = "1.11.1",
+  url = "https://github.com/MichaelAquilina/zsh-you-should-use/archive/refs/tags/1.11.1.tar.gz",
+  strip_components = 1,
+}
+"http:powerlevel10k" = {
+  version = "v1.20.0",
+  url = "https://github.com/romkatv/powerlevel10k/archive/v1.20.0.tar.gz",
+  strip_components = 1,
+}
+
+# ── Tmux plugins ───────────────────────────────────────────
+"http:tmux-themepack" = {
+  version = "7c59902f64dcd7ea356e891274b21144d1ea5948",
+  url = "https://github.com/jimeh/tmux-themepack/archive/7c59902f64dcd7ea356e891274b21144d1ea5948.tar.gz",
+  strip_components = 1,
+}
+"http:tmux-pain-control" = {
+  version = "32b760f6652f2305dfef0acd444afc311cf5c077",
+  url = "https://github.com/tmux-plugins/tmux-pain-control/archive/32b760f6652f2305dfef0acd444afc311cf5c077.tar.gz",
+  strip_components = 1,
+}
+"http:tmux-yank" = {
+  version = "acfd36e4fcba99f8310a7dfb432111c242fe7392",
+  url = "https://github.com/tmux-plugins/tmux-yank/archive/acfd36e4fcba99f8310a7dfb432111c242fe7392.tar.gz",
+  strip_components = 1,
+}
+"http:tmux-copycat" = {
+  version = "d7f7e6c1de0bc0d6915f4beea5be6a8a42045c09",
+  url = "https://github.com/tmux-plugins/tmux-copycat/archive/d7f7e6c1de0bc0d6915f4beea5be6a8a42045c09.tar.gz",
+  strip_components = 1,
+}
+"http:tmux-sensible" = {
+  version = "25cb91f42d020f675bb0a2ce3fbd3a5d96119efa",
+  url = "https://github.com/tmux-plugins/tmux-sensible/archive/25cb91f42d020f675bb0a2ce3fbd3a5d96119efa.tar.gz",
+  strip_components = 1,
+}
+"http:vim-tmux-navigator" = {
+  version = "e41c431a0c7b7388ae7ba341f01a0d217eb3a432",
+  url = "https://github.com/christoomey/vim-tmux-navigator/archive/e41c431a0c7b7388ae7ba341f01a0d217eb3a432.tar.gz",
+  strip_components = 1,
+}
+
+# ── Neovim plugins (stable, mise http: + lazy.nvim dir) ────
+"http:lazy-nvim" = {
+  version = "85c7ff3711b730b4030d03144f6db6375044ae82",
+  url = "https://github.com/folke/lazy.nvim/archive/85c7ff3711b730b4030d03144f6db6375044ae82.tar.gz",
+  strip_components = 1,
+}
+"http:solarized-nvim" = {
+  version = "a8085e29883ddcfb39bd46197eb32ef00df05368",
+  url = "https://github.com/maxmx03/solarized.nvim/archive/a8085e29883ddcfb39bd46197eb32ef00df05368.tar.gz",
+  strip_components = 1,
+}
+"http:undotree" = {
+  version = "6fa6b57cda8459e1e4b2ca34df702f55242f4e4d",
+  url = "https://github.com/mbbill/undotree/archive/6fa6b57cda8459e1e4b2ca34df702f55242f4e4d.tar.gz",
+  strip_components = 1,
+}
+"http:editorconfig-nvim" = {
+  version = "67758c3e8a2f79019322a60013e4ce0aad09dafa",
+  url = "https://github.com/gpanders/editorconfig.nvim/archive/67758c3e8a2f79019322a60013e4ce0aad09dafa.tar.gz",
+  strip_components = 1,
+}
+"http:comment-nvim" = {
+  version = "e30b7f2008e52442154b66f7c519bfd2f1e32acb",
+  url = "https://github.com/numToStr/Comment.nvim/archive/e30b7f2008e52442154b66f7c519bfd2f1e32acb.tar.gz",
+  strip_components = 1,
+}
+"http:indent-blankline-nvim" = {
+  version = "d28a3f70721c79e3c5f6693057ae929f3d9c0a03",
+  url = "https://github.com/lukas-reineke/indent-blankline.nvim/archive/d28a3f70721c79e3c5f6693057ae929f3d9c0a03.tar.gz",
+  strip_components = 1,
+}
+"http:gitsigns-nvim" = {
+  version = "2038c666bd9d8a0b7349a0b6ee00dc83104b9ecf",
+  url = "https://github.com/lewis6991/gitsigns.nvim/archive/2038c666bd9d8a0b7349a0b6ee00dc83104b9ecf.tar.gz",
+  strip_components = 1,
+}
+"http:which-key-nvim" = {
+  version = "3aab2147e74890957785941f0c1ad87d0a44c15a",
+  url = "https://github.com/folke/which-key.nvim/archive/3aab2147e74890957785941f0c1ad87d0a44c15a.tar.gz",
+  strip_components = 1,
+}
+"http:vim-fugitive" = {
+  version = "3b753cf8c6a4dcde6edee8827d464ba9b8c4a6f0",
+  url = "https://github.com/tpope/vim-fugitive/archive/3b753cf8c6a4dcde6edee8827d464ba9b8c4a6f0.tar.gz",
+  strip_components = 1,
+}
+"http:lualine-nvim" = {
+  version = "221ce6b2d999187044529f49da6554a92f740a96",
+  url = "https://github.com/nvim-lualine/lualine.nvim/archive/221ce6b2d999187044529f49da6554a92f740a96.tar.gz",
+  strip_components = 1,
+}
+"http:fzf" = {
+  version = "3c9965a61a842ef54e976c7195b985ee43a3e776",
+  url = "https://github.com/junegunn/fzf/archive/3c9965a61a842ef54e976c7195b985ee43a3e776.tar.gz",
+  strip_components = 1,
+}
+"http:fzf-vim" = {
+  version = "d2a59a992a2455f609c0fde2ebd84427ea8f919a",
+  url = "https://github.com/junegunn/fzf.vim/archive/d2a59a992a2455f609c0fde2ebd84427ea8f919a.tar.gz",
+  strip_components = 1,
+}
+"http:nvim-lspconfig" = {
+  version = "bfcc0171a43f22afa61d927ffe9fcb6cb85dc99e",
+  url = "https://github.com/neovim/nvim-lspconfig/archive/bfcc0171a43f22afa61d927ffe9fcb6cb85dc99e.tar.gz",
+  strip_components = 1,
+}
+"http:blink-cmp" = {
+  version = "78336bc89ee5365633bcf754d93df01678b5c08f",
+  url = "https://github.com/saghen/blink.cmp/archive/78336bc89ee5365633bcf754d93df01678b5c08f.tar.gz",
+  strip_components = 1,
+}
+"http:sidekick-nvim" = {
+  version = "208e1c5b8170c01fd1d07df0139322a76479b235",
+  url = "https://github.com/folke/sidekick.nvim/archive/208e1c5b8170c01fd1d07df0139322a76479b235.tar.gz",
+  strip_components = 1,
+}
+"http:snacks-nvim" = {
+  version = "882c996cf28183f4d63640de0b4c02ec886d01f2",
+  url = "https://github.com/folke/snacks.nvim/archive/882c996cf28183f4d63640de0b4c02ec886d01f2.tar.gz",
+  strip_components = 1,
+}
+"http:nvim-web-devicons" = {
+  version = "dfbfaa967a6f7ec50789bead7ef87e336c1fa63c",
+  url = "https://github.com/nvim-tree/nvim-web-devicons/archive/dfbfaa967a6f7ec50789bead7ef87e336c1fa63c.tar.gz",
+  strip_components = 1,
+}
+
+# ── Source-compiled tools ───────────────────────────────────
+"http:autossh" = {
+  version = "1.4f",
+  url = "https://github.com/Autossh/autossh/archive/refs/tags/v1.4f.tar.gz",
+  strip_components = 1,
+}
+
+# ── macOS .app bundles ─────────────────────────────────────
+{{ if eq .chezmoi.os "darwin" -}}
+# .zip archives: mise extracts them; install-macos-apps does the .app install.
+"http:ice" = {
+  version = "0.11.12",
+  url = "https://github.com/jordanbaird/Ice/releases/download/0.11.12/Ice.zip",
+}
+"http:xbar" = {
+  version = "2.1.7-beta",
+  url = "https://github.com/matryer/xbar/releases/download/v2.1.7-beta/xbar.v2.1.7-beta.zip",
+}
+
+# .dmg disk images: mise downloads them;
+# install-macos-apps mounts with hdiutil and installs the .app.
+"http:ghostty" = {
+  version = "1.3.0",
+  url = "https://release.files.ghostty.org/1.3.0/Ghostty.dmg",
+}
+"http:rectangle" = {
+  version = "0.96",
+  url = "https://github.com/rxhanson/Rectangle/releases/download/v0.96/Rectangle0.96.dmg",
+}
+"http:stats" = {
+  version = "3.0.4",
+  url = "https://github.com/exelban/stats/releases/download/v3.0.4/Stats.dmg",
+}
+{{- end }}
+
+[settings]
+go_set_gobin = true
+always_keep_download = true

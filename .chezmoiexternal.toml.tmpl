@@ -1,8 +1,0 @@
-# ── Tools ──────────────────────────────────────────────────
-
-[".local/share/autossh"]
-    type = "archive"
-    url = {{ (gitHubLatestTag "Autossh/autossh").TarballURL | quote }}
-    exact = true
-    stripComponents = 1
-    refreshPeriod = "168h"

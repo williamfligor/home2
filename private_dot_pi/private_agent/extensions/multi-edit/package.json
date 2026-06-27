@@ -1,0 +1,14 @@
+{
+	"name": "pi-multi-edit",
+	"private": true,
+	"version": "1.0.0",
+	"type": "module",
+	"pi": {
+		"extensions": [
+			"./multi-edit.ts"
+		]
+	},
+	"dependencies": {
+		"diff": "^9.0.0"
+	}
+}

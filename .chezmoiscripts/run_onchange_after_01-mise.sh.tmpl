@@ -1,0 +1,16 @@
+#!/bin/bash
+# vi: ft=bash
+set -euo pipefail
+
+echo "===Installing mise==="
+
+# Install mise if not present
+if ! command -v mise &>/dev/null; then
+    curl -fsSL https://mise.run | sh
+    # Add to PATH for this invocation
+    export PATH="$HOME/.local/bin:$PATH"
+fi
+
+# Install all tools from config
+# mise config hash: {{ include "dot_config/mise/config.toml.tmpl" | sha256sum }}
+mise install --yes

@@ -26,7 +26,6 @@ alias gs="git status"
 alias lg="lazygit"
 
 alias speedtest="wget -O /dev/null http://cachefly.cachefly.net/100mb.test";
-alias ag="rg"
 
 # chezmoi aliases
 alias cz="chezmoi"

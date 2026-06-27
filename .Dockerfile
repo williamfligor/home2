@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM ubuntu:24.04
 
 RUN apt-get update && \
@@ -5,7 +6,8 @@ RUN apt-get update && \
         git \
         sudo \
         curl  \
-        bash  \
+        bash \
+        zsh \
         python3 \
         python3-pip \
         python3-venv \
@@ -18,4 +20,6 @@ WORKDIR /root
 
 RUN mkdir -p /root/.local/share/chezmoi
 COPY . /root/.local/share/chezmoi
-RUN chezmoi init && chezmoi apply
+RUN --mount=type=secret,id=github_token \
+    GITHUB_TOKEN=$(cat /run/secrets/github_token) chezmoi init && \
+    GITHUB_TOKEN=$(cat /run/secrets/github_token) chezmoi apply
