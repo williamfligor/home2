@@ -3,23 +3,6 @@
 local map = vim.keymap.set
 local opts = { noremap = true, silent = true }
 
--- ── Which-key group labels ──────────────────────────────────
-local wk = require("which-key")
-wk.add({
-  { "<leader>b", group = "buffer" },
-  { "<leader>f", group = "file" },
-  { "<leader>g", group = "git" },
-  { "<leader>p", group = "project" },
-  { "<leader>w", group = "window" },
-  { "<leader>t", group = "toggle" },
-  { "<leader>a", group = "sidekick" },
-  { "<leader>e", group = "location" },
-  { "<leader>q", group = "quit" },
-  { "<leader>s", group = "search" },
-  { "<leader>d", group = "docstring" },
-  { "<leader>m", group = "doxygen" },
-})
-
 -- ── Better defaults ──────────────────────────────────────────
 -- Reselect after indent
 map("v", "<", "<gv", opts)

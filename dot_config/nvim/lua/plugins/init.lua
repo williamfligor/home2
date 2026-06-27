@@ -47,7 +47,22 @@ return {
       plugins = { spelling = { enabled = true } },
     },
     config = function(_, opts)
-      require("which-key").setup(opts)
+      local wk = require("which-key")
+      wk.setup(opts)
+      wk.add({
+        { "<leader>b", group = "buffer" },
+        { "<leader>f", group = "file" },
+        { "<leader>g", group = "git" },
+        { "<leader>p", group = "project" },
+        { "<leader>w", group = "window" },
+        { "<leader>t", group = "toggle" },
+        { "<leader>a", group = "sidekick" },
+        { "<leader>e", group = "location" },
+        { "<leader>q", group = "quit" },
+        { "<leader>s", group = "search" },
+        { "<leader>d", group = "docstring" },
+        { "<leader>m", group = "doxygen" },
+      })
     end,
   },
 
