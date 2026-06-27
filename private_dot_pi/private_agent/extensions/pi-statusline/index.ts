@@ -1,25 +1,31 @@
 /**
- * pi-statusline — a powerline-inspired custom footer for pi.
+ * pi-statusline — a powerline-inspired footer for pi.
  *
- * Replaces the built-in footer with a segmented powerline-style bar.
+ * Footer:
+ *   model  think:med ▐ hostname ▐ ~/cwd ▐ branch    12m34s ▌ 4.2k/200K (2.1%) ▌ $0.042 ▌ ext-statuses
  *
- * Left side:  model  ▐  git-branch  ▐  context%
- * Right side: ↑toks ↓toks  ▌  $cost  ▌  ext-statuses
+ * Also customises the streaming working indicator (Amp-style pulsing dot).
  *
  * Design principles:
- *   • Uses only ctx.ui.setFooter() — does NOT touch the editor (pi-vim safe).
+ *   • Uses only setFooter + setWorkingIndicator — does NOT touch the editor
+ *     component or its borders (pi-vim safe).
  *   • All colours come from the active pi theme.
- *   • Segments separated by ▐/▌ in the preceding segment's colour for a
- *     powerline transition effect (no nerd-font dependency).
- *   • Toggle with /statusline.
  *   • No code copied from pi-powerline-footer (independent implementation).
+ *   • Toggle with /statusline.
  */
 
+import { hostname as osHostname } from "node:os";
+import { homedir } from "node:os";
 import type { ExtensionAPI, ReadonlyFooterDataProvider, Theme } from "@earendil-works/pi-coding-agent";
-import type { TUI } from "@earendil-works/pi-tui";
+import type { TUI, Component } from "@earendil-works/pi-tui";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
-/* ── thinking level display ────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════
+   constants
+   ══════════════════════════════════════════════════════════════ */
+
+const HOSTNAME = osHostname();
+const HOME = homedir().replace(/\/?$/, "");
 
 /** Human-readable label + theme colour for each thinking tier. */
 const THINKING_LABELS: Record<string, { label: string; color: Parameters<Theme["fg"]>[0] }> = {
@@ -30,7 +36,9 @@ const THINKING_LABELS: Record<string, { label: string; color: Parameters<Theme["
   xhigh:   { label: "think:xhigh", color: "thinkingXhigh" },
 };
 
-/* ── utilities ────────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════
+   utilities
+   ══════════════════════════════════════════════════════════════ */
 
 function fmtTokens(n: number): string {
   if (n < 1_000) return String(n);
@@ -39,10 +47,25 @@ function fmtTokens(n: number): string {
   return `${(n / 1_000_000).toFixed(1)}M`;
 }
 
-/** Shorten model id for compact display */
-function fmtModel(id: string): string {
-  const s = id.replace(/^claude-/i, "").replace(/^gemini-/i, "");
-  return s.length > 20 ? s.slice(0, 18) + "…" : s;
+function fmtPath(cwd: string): string {
+  let p = cwd;
+  if (HOME && p.startsWith(HOME)) p = `~${p.slice(HOME.length)}`;
+  const MAX = 40;
+  if (p.length > MAX) {
+    const parts = p.split("/");
+    const tail = parts.slice(-3);
+    if (tail.length < parts.length) p = `…/${tail.join("/")}`;
+  }
+  return p;
+}
+
+function fmtDuration(ms: number): string {
+  const s = Math.floor(ms / 1_000);
+  const m = Math.floor(s / 60);
+  const h = Math.floor(m / 60);
+  if (h > 0) return `${h}h${m % 60}m`;
+  if (m > 0) return `${m}m${s % 60}s`;
+  return `${s}s`;
 }
 
 function fmtCost(cost: number): string {
@@ -52,269 +75,282 @@ function fmtCost(cost: number): string {
   return `$${cost.toFixed(2)}`;
 }
 
-/* ── usage aggregator ─────────────────────────────────────── */
-
-interface Usage {
-  input: number;
-  output: number;
-  cost: number;
+function fmtModelLabel(model: { id: string; name?: string } | undefined): string {
+  if (!model) return "no-model";
+  if (model.name) return model.name;
+  return model.id.replace(/^claude-/i, "").replace(/^gemini-/i, "");
 }
 
-function aggregateUsage(ctx: { sessionManager: { getBranch(): unknown[] } }): Usage {
-  let input = 0;
-  let output = 0;
-  let cost = 0;
+/** Format context usage: "4/1.0M (0.0%)" */
+function fmtContextUsage(
+  tokens: number | null,
+  contextWindow: number,
+  percent: number | null,
+): { main: string; pct: string; pctColor: Parameters<Theme["fg"]>[0] } {
+  const used = tokens != null ? fmtTokens(tokens) : "?";
+  const win = contextWindow > 0 ? fmtTokens(contextWindow) : "?";
+  const main = `${used}/${win}`;
+  let pct: string;
+  let pctColor: Parameters<Theme["fg"]>[0];
+  if (percent != null) {
+    pct = `(${percent.toFixed(1)}%)`;
+    pctColor = percent >= 90 ? "error" : percent >= 70 ? "warning" : "muted";
+  } else {
+    pct = "";
+    pctColor = "muted";
+  }
+  return { main, pct, pctColor };
+}
 
+/* ══════════════════════════════════════════════════════════════
+   usage aggregator
+   ══════════════════════════════════════════════════════════════ */
+
+interface Usage { input: number; output: number; cost: number }
+
+function aggregateUsage(ctx: { sessionManager: { getBranch(): unknown[] } }): Usage {
+  let input = 0, output = 0, cost = 0;
   for (const entry of ctx.sessionManager.getBranch()) {
-    const e = entry as { type?: string; message?: { role?: string; usage?: { input?: number; output?: number; cost?: { total?: number } } } };
+    const e = entry as {
+      type?: string;
+      message?: { role?: string; usage?: { input?: number; output?: number; cost?: { total?: number } } };
+    };
     if (e.type === "message" && e.message?.role === "assistant") {
       input += e.message.usage?.input ?? 0;
       output += e.message.usage?.output ?? 0;
       cost += e.message.usage?.cost?.total ?? 0;
     }
   }
-
   return { input, output, cost };
 }
 
-/* ── footer component factory ─────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════
+   footer component factory
+   ══════════════════════════════════════════════════════════════ */
 
-/** The subset of ExtensionContext we actually consume. */
 interface FooterContext {
   readonly hasUI: boolean;
+  readonly cwd: string;
   readonly ui: {
     readonly theme: Theme;
-    setFooter(
-      factory:
-        | ((
-            tui: TUI,
-            theme: Theme,
-            footerData: ReadonlyFooterDataProvider,
-          ) => { render(width: number): string[]; invalidate(): void; dispose?(): void })
-        | undefined,
-    ): void;
-    notify(message: string, type?: "info" | "warning" | "error"): void;
+    setFooter: (f: unknown) => void;
+    notify: (m: string, t?: "info" | "warning" | "error") => void;
+    setWorkingIndicator: (opts?: { frames?: readonly string[]; intervalMs?: number }) => void;
+    setWorkingMessage: (msg?: string) => void;
   };
   readonly sessionManager: { getBranch(): unknown[] };
   readonly model?: { id: string; name?: string; reasoning?: boolean; contextWindow?: number };
   getContextUsage?(): { tokens: number | null; contextWindow: number; percent: number | null } | undefined;
-  /** Current thinking level (tracked via thinking_level_select events). */
+  sessionStart: number;
   thinkingLevel: string;
 }
 
-function createStatuslineFooter(
-  ctx: FooterContext,
-): (tui: TUI, theme: Theme, footerData: ReadonlyFooterDataProvider) => {
-  render(width: number): string[];
-  invalidate(): void;
-  dispose?(): void;
-} {
-  return (tui: TUI, theme: Theme, footerData: ReadonlyFooterDataProvider) => {
+interface Label { text: string; color: Parameters<Theme["fg"]>[0] }
+
+function createStatuslineFooter(ctx: FooterContext) {
+  return (
+    tui: TUI,
+    theme: Theme,
+    footerData: ReadonlyFooterDataProvider,
+  ): { render(width: number): string[]; invalidate(): void; dispose?(): void } => {
     const unsub = footerData.onBranchChange(() => tui.requestRender());
 
     return {
       dispose: unsub,
       invalidate() { /* no-op */ },
-
       render(width: number): string[] {
-        const line = buildStatusline(theme, ctx as BuildCtx, footerData, width);
+        const line = buildFooterLine(theme, ctx, footerData, width);
         return [line];
       },
     };
   };
 }
 
-/* ── statusline layout engine ─────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════
+   footer line layout
+   ══════════════════════════════════════════════════════════════ */
 
-/**
- * Each segment has a label (the text shown) and a thematic colour.
- * The colour is used for both the text and the separator that follows.
- */
-interface BuildCtx {
-  sessionManager: { getBranch(): unknown[] };
-  model?: { id: string; name?: string; reasoning?: boolean; contextWindow?: number };
-  getContextUsage?(): { tokens: number | null; contextWindow: number; percent: number | null } | undefined;
-  /** Current thinking level (empty string / "off" means hidden). */
-  thinkingLevel: string;
-}
-
-function buildStatusline(
+function buildFooterLine(
   theme: Theme,
-  ctx: BuildCtx,
+  ctx: FooterContext,
   footerData: ReadonlyFooterDataProvider,
   width: number,
 ): string {
-  /* ── gather data ─────────────────────────────────────── */
-
-  const modelName = ctx.model ? fmtModel(ctx.model.id) : "no-model";
+  /* data ── */
+  const modelLabel = fmtModelLabel(ctx.model);
+  const modelHasReasoning = ctx.model?.reasoning ?? false;
+  const cwd = fmtPath(ctx.cwd);
   const branch = footerData.getGitBranch();
-  const usage = aggregateUsage(ctx as any);
+  const usage = aggregateUsage(ctx);
   const ctxUsage = ctx.getContextUsage?.() ?? null;
-  const contextPct = ctxUsage?.percent != null ? ctxUsage.percent : null;
-  const thinking = ctx.thinkingLevel;
-
-  /* ── build left segments ──────────────────────────────── */
-
-  interface Label {
-    text: string;
-    /** ThemeColor literal used for text and following separator. */
-    color: Parameters<Theme["fg"]>[0];
+  const tokens = ctxUsage?.tokens ?? null;
+  const contextWindow = ctxUsage?.contextWindow ?? ctx.model?.contextWindow ?? 0;
+  const percent = ctxUsage?.percent ?? null;
+  const ctxFmt = fmtContextUsage(tokens, contextWindow, percent);
+  const sessElapsed = ctx.sessionStart > 0 ? Date.now() - ctx.sessionStart : 0;
+  const sessStr = sessElapsed > 0 ? fmtDuration(sessElapsed) : "";
+  const statusParts: string[] = [];
+  for (const val of footerData.getExtensionStatuses().values()) {
+    if (val) statusParts.push(val);
   }
 
-  const left: Label[] = [{ text: modelName, color: "accent" }];
+  /* left segments ── */
 
-  // Thinking level (only when model supports reasoning and level is not "off")
-  if (ctx.model?.reasoning && thinking && thinking !== "off") {
-    const info = THINKING_LABELS[thinking];
-    if (info) {
-      left.push({ text: info.label, color: info.color });
-    }
+  const left: Label[] = [{ text: modelLabel, color: "accent" }];
+
+  // Thinking level
+  const tl = ctx.thinkingLevel;
+  if (modelHasReasoning && tl && tl !== "off") {
+    const info = THINKING_LABELS[tl];
+    if (info) left.push({ text: info.label, color: info.color });
   }
 
-  if (branch) {
-    left.push({ text: branch, color: "success" });
-  }
+  left.push({ text: HOSTNAME, color: "dim" });
+  left.push({ text: cwd, color: "muted" });
+  if (branch) left.push({ text: branch, color: "success" });
 
-  if (contextPct != null) {
-    const pct = Math.round(contextPct);
-    const text = `${pct}%`;
-    const color: Parameters<Theme["fg"]>[0] =
-      pct >= 90 ? "error" : pct >= 70 ? "warning" : "muted";
-    left.push({ text, color });
-  }
-
-  /* ── build right segments ─────────────────────────────── */
+  /* right segments ── */
 
   const right: Label[] = [];
+  if (sessStr) right.push({ text: sessStr, color: "dim" });
+  right.push({ text: ctxFmt.main, color: "muted" });
+  if (ctxFmt.pct) right.push({ text: ctxFmt.pct, color: ctxFmt.pctColor });
+  const costStr = fmtCost(usage.cost);
+  if (costStr) right.push({ text: costStr, color: "dim" });
+  if (statusParts.length > 0) right.push({ text: statusParts.join(" "), color: "muted" });
 
-  if (usage.input > 0 || usage.output > 0) {
-    right.push({
-      text: `↑${fmtTokens(usage.input)} ↓${fmtTokens(usage.output)}`,
-      color: "dim",
-    });
-  }
-
-  if (usage.cost > 0) {
-    right.push({ text: fmtCost(usage.cost), color: "dim" });
-  }
-
-  // Extension statuses (eg from other extensions' ctx.ui.setStatus calls)
-  const statuses = footerData.getExtensionStatuses();
-  if (statuses.size > 0) {
-    const parts: string[] = [];
-    for (const val of statuses.values()) {
-      if (val) parts.push(val);
-    }
-    if (parts.length > 0) {
-      right.push({ text: parts.join(" "), color: "muted" });
-    }
-  }
-
-  /* ── render left half ─────────────────────────────────── */
+  /* render left (→ direction) ── */
 
   const renderLeft = (segs: Label[]): string => {
     let out = "";
     for (let i = 0; i < segs.length; i++) {
       const { text, color } = segs[i];
-      if (i > 0) {
-        // Separator in the PREVIOUS segment's colour → powerline transition
-        const prevColor = segs[i - 1].color;
-        out += theme.fg(prevColor, "▐");
-      }
+      if (i > 0) out += theme.fg(segs[i - 1].color, "▐");
       out += theme.fg(color, ` ${text} `);
     }
     return out;
   };
 
-  /* ── render right half (reversed) ─────────────────────── */
+  /* render right (← direction) ── */
 
   const renderRight = (segs: Label[]): string => {
     let out = "";
     for (let i = segs.length - 1; i >= 0; i--) {
       const { text, color } = segs[i];
-      if (i < segs.length - 1) {
-        // On the right side the separator points the other way.
-        // Use the colour of the segment that is INWARDS (higher index).
-        const inwardsColor = segs[i + 1].color;
-        out = theme.fg(inwardsColor, "▌") + out;
-      }
+      if (i < segs.length - 1) out = theme.fg(segs[i + 1].color, "▌") + out;
       out = theme.fg(color, ` ${text} `) + out;
     }
     return out;
   };
 
-  /* ── layout: left + gap + right, then truncate ──────────── */
+  /* layout ── */
 
   const leftStr = renderLeft(left);
   const rightStr = renderRight(right);
-
-  const lw = visibleWidth(leftStr);
-  const rw = visibleWidth(rightStr);
-  const gap = Math.max(1, width - lw - rw);
-  const gapStr = " ".repeat(gap);
-
-  const full = leftStr + gapStr + rightStr;
-  return truncateToWidth(full, width);
+  const gap = Math.max(1, width - visibleWidth(leftStr) - visibleWidth(rightStr));
+  return truncateToWidth(leftStr + " ".repeat(gap) + rightStr, width);
 }
 
-/* ── extension entry point ─────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════
+   extension entry point
+   ══════════════════════════════════════════════════════════════ */
 
 export default function (pi: ExtensionAPI) {
-  let enabled = true; // active by default
-  let thinkingLevel = ""; // tracked via thinking_level_select
+  let enabled = true;
+  let sessionStart = 0;
+  let thinkingLevel = "";
 
-  /** Merge the current thinking level into ctx for the footer closure. */
-  function buildFooterCtx(ctx: any): FooterContext {
-    return {
+  /* ── helpers ── */
+
+  function attachFooter(ctx: any): void {
+    if (!ctx.hasUI) return;
+    const footerCtx: FooterContext = {
       ...ctx,
+      sessionStart,
       thinkingLevel: thinkingLevel || ((pi.getThinkingLevel?.() as string) ?? ""),
     };
+    ctx.ui.setFooter(createStatuslineFooter(footerCtx));
   }
 
-  function attach(ctx: any): void {
-    if (!ctx.hasUI) return;
-    ctx.ui.setFooter(createStatuslineFooter(buildFooterCtx(ctx)));
-  }
-
-  function detach(ctx: any): void {
+  function detachFooter(ctx: any): void {
     if (!ctx.hasUI) return;
     ctx.ui.setFooter(undefined);
   }
 
-  /* Auto-enable on session start */
+  function setupWorkingIndicator(ctx: any): void {
+    if (!ctx.hasUI) return;
+    const modelLabel = fmtModelLabel(ctx.model);
+    ctx.ui.setWorkingIndicator({
+      frames: ["○", "◔", "●", "◕"],
+      intervalMs: 160,
+    });
+    ctx.ui.setWorkingMessage(modelLabel ? `${modelLabel} working…` : "working…");
+  }
+
+  function restoreWorkingIndicator(ctx: any): void {
+    if (!ctx.hasUI) return;
+    ctx.ui.setWorkingIndicator();
+    ctx.ui.setWorkingMessage();
+  }
+
+  function attachAll(ctx: any): void {
+    attachFooter(ctx);
+    setupWorkingIndicator(ctx);
+  }
+
+  function detachAll(ctx: any): void {
+    detachFooter(ctx);
+    restoreWorkingIndicator(ctx);
+  }
+
+  /* ── events ── */
+
   pi.on("session_start", (_event, ctx) => {
+    sessionStart = Date.now();
     thinkingLevel = (pi.getThinkingLevel?.() as string) ?? "";
-    if (enabled) attach(ctx);
+    if (enabled) attachAll(ctx);
   });
 
-  /* Keep thinking level in sync — re-attach so the footer picks it up */
+  pi.on("session_shutdown", () => {
+    sessionStart = 0;
+  });
+
+  pi.on("model_select", (_event, ctx) => {
+    if (!enabled || !ctx.hasUI) return;
+    detachFooter(ctx);
+    attachFooter(ctx);
+    ctx.ui.setWorkingMessage(
+      `${fmtModelLabel(ctx.model)} working…`,
+    );
+  });
+
   pi.on("thinking_level_select", ({ level }, ctx) => {
     thinkingLevel = level as string;
-    if (enabled && ctx.hasUI) {
-      detach(ctx);
-      attach(ctx);
-    }
+    if (!enabled || !ctx.hasUI) return;
+    detachFooter(ctx);
+    attachFooter(ctx);
   });
 
-  /* Re-attach on model change so model id stays fresh */
-  pi.on("model_select", (_event, ctx) => {
-    if (enabled) {
-      detach(ctx);
-      attach(ctx);
-    }
+  pi.on("turn_start", (_event, ctx) => {
+    // Amp-style: working indicator is already customised via setWorkingIndicator
   });
 
-  /* /statusline toggle command */
+  pi.on("turn_end", (_event, ctx) => {
+    // no-op; the working indicator restores automatically when streaming ends
+  });
+
+  /* ── toggle ── */
+
   pi.registerCommand("statusline", {
     description: "Toggle pi-statusline powerline-style footer",
     handler: async (_args, ctx) => {
       enabled = !enabled;
 
       if (enabled) {
-        attach(ctx);
+        attachAll(ctx);
         ctx.ui.notify("Statusline enabled", "info");
       } else {
-        detach(ctx);
+        detachAll(ctx);
         ctx.ui.notify("Statusline disabled", "info");
       }
     },
