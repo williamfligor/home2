@@ -47,22 +47,7 @@ return {
       plugins = { spelling = { enabled = true } },
     },
     config = function(_, opts)
-      local wk = require("which-key")
-      wk.setup(opts)
-      vim.keymap.set("n", "<leader>", ":WhichKey '<Space>'<CR>", { desc = "WhichKey", silent = true })
-      wk.add({
-        { "<leader>b", group = "buffer" },
-        { "<leader>f", group = "file" },
-        { "<leader>g", group = "git" },
-        { "<leader>w", group = "window" },
-        { "<leader>t", group = "toggle" },
-        { "<leader>a", group = "sidekick" },
-        { "<leader>e", group = "location" },
-        { "<leader>q", group = "quit" },
-        { "<leader>s", group = "search" },
-        { "<leader>d", group = "docstring" },
-        { "<leader>m", group = "doxygen" },
-      })
+      require("which-key").setup(opts)
     end,
   },
 
@@ -78,6 +63,20 @@ return {
     dir = mise_dir("fzf-vim"),
     lazy = false,
     dependencies = { { name = "fzf", dir = mise_dir("fzf") } },
+    keys = {
+      { "<leader>?",  "<cmd>Maps<CR>",                        desc = "Key maps" },
+      { "<leader>bb", "<cmd>Buffers<CR>",                     desc = "Buffers" },
+      { "<leader>ff", "<cmd>Files<CR>",                       desc = "Find files" },
+      { "<leader>pf", "<cmd>GFiles<CR>",                      desc = "Git files" },
+      { "<leader>fr", "<cmd>History<CR>",                     desc = "Recent files" },
+      { "<leader>gs", "<cmd>GFiles?<CR>",                     desc = "Git modified files" },
+      { "<leader>s*", function()
+          local search = vim.fn.getreg("/")
+          search = search:gsub("^\\<", ""):gsub("\\>$", "")
+          if search ~= "" then vim.cmd("Rg " .. search) end
+        end,                                                  desc = "Rg from search register" },
+      { "<leader>sp", "<cmd>Rg<SPACE>",                       desc = "Ripgrep search" },
+    },
   },
 
   -- ── Git signs ──────────────────────────────────────────────
@@ -249,6 +248,19 @@ return {
         },
       })
     end,
+    keys = {
+      { "<C-.>", function() require("sidekick.cli").focus() end, mode = { "n", "t" }, desc = "Sidekick focus" },
+      { "<C-.>", function() require("sidekick.cli").focus() end, mode = "i",          desc = "Sidekick focus" },
+      { "<C-.>", function() require("sidekick.cli").focus() end, mode = "x",          desc = "Sidekick focus" },
+      { "<leader>aa", function() require("sidekick.cli").toggle({ name = "pi" }) end, desc = "Sidekick toggle" },
+      { "<leader>an", function() require("sidekick.cli").new({ name = "pi" }) end,    desc = "Sidekick new CLI" },
+      { "<leader>as", function() require("sidekick.cli").select() end,                desc = "Sidekick select CLI" },
+      { "<leader>ad", function() require("sidekick.cli").close() end,                 desc = "Sidekick detach" },
+      { "<leader>at", function() require("sidekick.cli").send({ msg = "{this}" }) end, desc = "Sidekick send this", mode = { "n", "x" } },
+      { "<leader>af", function() require("sidekick.cli").send({ msg = "{file}" }) end, desc = "Sidekick send file" },
+      { "<leader>av", ":Sidekick cli send<CR>",                                        desc = "Sidekick send selection", mode = "x" },
+      { "<leader>ap", function() require("sidekick.cli").prompt() end,                 desc = "Sidekick prompt", mode = { "n", "x" } },
+    },
   },
 
   -- ── Snacks (dashboard, etc.) ───────────────────────────────
