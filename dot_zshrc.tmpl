@@ -19,7 +19,7 @@ fi
 # Helper: source a zsh plugin from a mise http: backend install by name
 mise-plugin() {
   local name="$1" file="${2:-$1.plugin.zsh}"
-  local dir="$(mise where "http-$name" 2>/dev/null)"
+  local dir="$(mise where "http:$name" 2>/dev/null)"
   [[ -n "$dir" && -f "$dir/$file" ]] && source "$dir/$file"
 }
 
