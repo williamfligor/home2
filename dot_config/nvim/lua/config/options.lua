@@ -54,7 +54,7 @@ opt.swapfile = true
 opt.shadafile = vim.fn.expand("~/.vim/nshada")
 
 -- Ensure swap/undo/backup dirs exist
-for _, dir in ipairs({ vim.fn.expand("~/.vim/nundo"), vim.fn.expand("~/.vim/nbackup"), vim.fn.expand("~/.vim/nswap"), vim.fn.expand("~/.vim/nshada") }) do
+for _, dir in ipairs({ vim.fn.expand("~/.vim/nundo"), vim.fn.expand("~/.vim/nbackup"), vim.fn.expand("~/.vim/nswap") }) do
   if vim.fn.isdirectory(dir) == 0 then
     vim.fn.mkdir(dir, "p")
   end
