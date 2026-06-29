@@ -33,6 +33,7 @@ ast-grep = "latest"
 difftastic = "latest"
 
 # ── GitHub-only (not in mise registry) ───────────────────────
+"antigravity-cli" = "latest"
 "github:samwho/spacer" = "latest"
 "github:elkowar/pipr" = "latest"
 "github:tldr-pages/tlrc" = "latest"

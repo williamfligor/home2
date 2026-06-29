@@ -16,11 +16,18 @@ if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
-# Helper: source a zsh plugin from a mise http: backend install by name
+# Helper: source a zsh plugin from a mise http: backend install by name.
+# Uses the symlink path directly instead of forking `mise where` on every shell start.
 mise-plugin() {
   local name="$1" file="${2:-$1.plugin.zsh}"
-  local dir="$(mise where "http:$name" 2>/dev/null)"
-  [[ -n "$dir" && -f "$dir/$file" ]] && source "$dir/$file"
+  local base="$HOME/.local/share/mise/installs/http-$name"
+  for symlink in vlatest rel_latest latest; do
+    local dir="$base/$symlink"
+    if [[ -d "$dir" && -f "$dir/$file" ]]; then
+      source "$dir/$file"
+      return
+    fi
+  done
 }
 
 export ZSH="$HOME/.local/share/mise/installs/http-oh-my-zsh/latest"

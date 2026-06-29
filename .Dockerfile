@@ -23,12 +23,10 @@ WORKDIR /root
 # only non-mise files change (e.g. .zshrc, neovim config).
 # Cache mount avoids re-downloading archives on rebuild.
 COPY dot_config/mise/config.toml /root/.local/share/chezmoi/dot_config/mise/config.toml
-COPY mise.toml /root/.local/share/chezmoi/mise.toml
 RUN --mount=type=secret,id=github_token \
     --mount=type=cache,target=/root/.cache/mise,sharing=locked \
     mkdir -p /root/.config/mise && \
     cp /root/.local/share/chezmoi/dot_config/mise/config.toml /root/.config/mise/config.toml && \
-    cp /root/.local/share/chezmoi/mise.toml /root/mise.toml && \
     curl -fsSL https://mise.run | sh && \
     export PATH="$HOME/.local/bin:$PATH" && \
     GITHUB_TOKEN=$(cat /run/secrets/github_token) mise install --yes
