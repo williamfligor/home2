@@ -2,10 +2,44 @@
 -- All plugins managed by lazy.nvim, downloaded by mise http: backend.
 -- lazy.nvim itself is the only git-based plugin (plugin manager).
 
--- mise_dir resolves through mise's latest symlink so consumers
+-- mise_dir resolves through mise's version symlink so consumers
 -- never need their version updated when the pin in mise.toml bumps.
+-- Handles 'vlatest' (v-prefixed), 'rel_latest' (rel-prefixed), and 'latest'.
 local function mise_dir(name)
-  return vim.fn.expand("$HOME/.local/share/mise/installs/http-" .. name .. "/latest")
+  local base = vim.fn.expand("$HOME/.local/share/mise/installs/http-" .. name)
+  for _, symlink in ipairs({ "vlatest", "rel_latest", "latest" }) do
+    local path = base .. "/" .. symlink
+    if vim.fn.isdirectory(path) == 1 then return path end
+  end
+  return base .. "/latest"
+end
+
+-- Links the mise-installed blink.cmp prebuilt binary to where
+-- blink.cmp expects it, so cargo build / auto-download are unnecessary.
+local function link_blink_binary()
+  local mise_bin = vim.fn.system("mise where github:saghen/blink.cmp 2>/dev/null"):gsub("%s+", "")
+  local mise_src = vim.fn.system("mise where http:blink-cmp 2>/dev/null"):gsub("%s+", "")
+  if mise_bin == "" or mise_src == "" then return end
+
+  -- mise's github backend strips both extension and OS suffix from asset names
+  local arch = (jit.arch == "arm64" or jit.arch == "aarch64") and "aarch64" or "x86_64"
+  local bin_name = arch .. "-unknown"
+  local os_name = jit.os:lower()
+  local ext = (os_name == "mac" or os_name == "osx") and ".dylib" or (os_name == "windows") and ".dll" or ".so"
+
+  local target_dir = mise_src .. "/target/release"
+  local target = target_dir .. "/libblink_cmp_fuzzy" .. ext
+  local source = mise_bin .. "/" .. bin_name
+
+  if vim.fn.executable(source) == 0 then
+    vim.notify("blink.cmp binary not found at " .. source, vim.log.levels.WARN)
+    return
+  end
+
+  vim.fn.mkdir(target_dir, "p")
+  if vim.fn.filereadable(target) == 0 then
+    vim.fn.system({ "ln", "-sf", source, target })
+  end
 end
 
 return {
@@ -197,7 +231,7 @@ return {
     name = "blink.cmp",
     dir = mise_dir("blink-cmp"),
     event = "InsertEnter",
-    build = "cargo build --release",
+    init = link_blink_binary,
     opts = {
       keymap = {
         preset = "enter",
@@ -226,7 +260,10 @@ return {
           scrollbar = true,
         },
       },
-      fuzzy = { implementation = "prefer_rust_with_warning" },
+      fuzzy = {
+        implementation = "rust",
+        prebuilt_binaries = { download = false },
+      },
     },
   },
 
