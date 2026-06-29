@@ -173,6 +173,7 @@ difftastic = "latest"
   url = "https://github.com/saghen/blink.cmp/archive/refs/tags/v1.10.2.tar.gz",
   strip_components = 1,
 }
+"github:saghen/blink.cmp" = "v1.10.2"
 "http:sidekick-nvim" = {
   version = "v2.3.0",
   url = "https://github.com/folke/sidekick.nvim/archive/refs/tags/v2.3.0.tar.gz",
