@@ -36,7 +36,7 @@ autocmd("BufWritePre", {
   end,
 })
 
--- ── Window-local settings ────────────────────────────────────
+-- ── Indentation overrides ────────────────────────────────────
 autocmd("FileType", {
   group = augroup("IndentSettings", { clear = true }),
   pattern = { "python", "lua", "ruby", "javascript", "typescript" },
@@ -47,7 +47,7 @@ autocmd("FileType", {
 })
 
 autocmd("FileType", {
-  group = augroup("IndentSettings2", { clear = true }),
+  group = augroup("IndentSettings", { clear = false }),
   pattern = { "html", "css", "json", "yaml", "markdown", "xml" },
   callback = function()
     vim.bo.tabstop = 2
