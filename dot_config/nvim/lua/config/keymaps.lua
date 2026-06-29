@@ -11,9 +11,6 @@ map("v", ">", ">gv", opts)
 -- Clear search highlight
 map("n", "<leader>sc", ":noh<CR>", { desc = "Clear search highlight" })
 
--- Remove trailing whitespace
-map("n", "<leader>W", ":%s/\\s\\+$//<cr>:let @/='' <CR>", { desc = "Remove trailing whitespace" })
-
 -- %% expands to buffer directory in command mode
 vim.cmd([[cnoremap <expr> %% getcmdtype() == ':' ? expand('%:h').'/' : '%%']])
 
