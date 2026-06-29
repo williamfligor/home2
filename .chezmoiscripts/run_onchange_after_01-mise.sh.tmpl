@@ -12,5 +12,5 @@ if ! command -v mise &>/dev/null; then
 fi
 
 # Install all tools from config
-# mise config hash: {{ include "dot_config/mise/config.toml.tmpl" | sha256sum }}
+# mise config hash: {{ include "dot_config/mise/config.toml" | sha256sum }}
 mise install --yes
