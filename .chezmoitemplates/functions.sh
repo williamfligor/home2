@@ -33,7 +33,3 @@ fzzy() {
 ccd() {
     cd $(chezmoi source-path)
 }
-
-capply() {
-    chezmoi apply --exclude=encrypted
-}
