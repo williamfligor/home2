@@ -17,7 +17,10 @@ end
 
 -- Links the mise-installed blink.cmp prebuilt binary to where
 -- blink.cmp expects it, so cargo build / auto-download are unnecessary.
+-- The github backend places exactly one binary file in the mise install
+-- directory; we auto-discover it rather than guessing the platform name.
 local function link_blink_binary()
+  vim.notify("blink.cmp: asdf", vim.log.levels.WARN)
   local mise_bin = vim.fn.system("mise where github:saghen/blink.cmp 2>/dev/null"):gsub("%s+", "")
   local mise_src = vim.fn.system("mise where http:blink-cmp 2>/dev/null"):gsub("%s+", "")
   if mise_bin == "" or mise_src == "" then
@@ -25,20 +28,35 @@ local function link_blink_binary()
     return
   end
 
-  -- mise's github backend strips both extension and OS suffix from asset names
-  local arch = (jit.arch == "arm64" or jit.arch == "aarch64") and "aarch64" or "x86_64"
-  local bin_name = arch .. "-unknown"
-  local os_name = jit.os:lower()
-  local ext = (os_name == "mac" or os_name == "osx") and ".dylib" or (os_name == "windows") and ".dll" or ".so"
+  -- Discover the one prebuilt binary in the github install directory
+  local handle = vim.loop.fs_scandir(mise_bin)
+  if not handle then
+    vim.notify("blink.cmp: cannot list " .. mise_bin, vim.log.levels.WARN)
+    return
+  end
+
+  local source
+  while true do
+    local name, type = vim.loop.fs_scandir_next(handle)
+    if not name then break end
+    -- Skip directories (e.g. mise's .mise-<version> internal dir)
+    if type == "file" then
+      source = mise_bin .. "/" .. name
+      break
+    end
+  end
+
+  if not source then
+    vim.notify("blink.cmp: no binary file found in " .. mise_bin, vim.log.levels.WARN)
+    return
+  end
+
+  local ext = (jit.os:lower() == "mac" or jit.os:lower() == "osx") and ".dylib"
+    or (jit.os:lower() == "windows") and ".dll"
+    or ".so"
 
   local target_dir = mise_src .. "/target/release"
   local target = target_dir .. "/libblink_cmp_fuzzy" .. ext
-  local source = mise_bin .. "/" .. bin_name
-
-  if vim.fn.executable(source) == 0 then
-    vim.notify("blink.cmp binary not found at " .. source, vim.log.levels.WARN)
-    return
-  end
 
   vim.fn.mkdir(target_dir, "p")
   -- Always re-link to pick up mise version upgrades (ln -sf is atomic)
