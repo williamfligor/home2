@@ -50,11 +50,11 @@ opt.backup = true
 opt.writebackup = true
 opt.swapfile = true
 
--- Disable shada (permission issues on macOS)
-opt.shadafile = "NONE"
+-- Custom shada location (avoids macOS sandbox/permission issues)
+opt.shadafile = vim.fn.expand("~/.vim/nshada")
 
 -- Ensure swap/undo/backup dirs exist
-for _, dir in ipairs({ vim.fn.expand("~/.vim/nundo"), vim.fn.expand("~/.vim/nbackup"), vim.fn.expand("~/.vim/nswap") }) do
+for _, dir in ipairs({ vim.fn.expand("~/.vim/nundo"), vim.fn.expand("~/.vim/nbackup"), vim.fn.expand("~/.vim/nswap"), vim.fn.expand("~/.vim/nshada") }) do
   if vim.fn.isdirectory(dir) == 0 then
     vim.fn.mkdir(dir, "p")
   end
