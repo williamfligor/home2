@@ -11,7 +11,8 @@ local function mise_dir(name)
     local path = base .. "/" .. symlink
     if vim.fn.isdirectory(path) == 1 then return path end
   end
-  return base .. "/latest"
+  vim.notify("mise_dir(" .. name .. "): no version symlink found (vlatest/rel_latest/latest), using base", vim.log.levels.WARN)
+  return base
 end
 
 -- Links the mise-installed blink.cmp prebuilt binary to where
@@ -19,7 +20,10 @@ end
 local function link_blink_binary()
   local mise_bin = vim.fn.system("mise where github:saghen/blink.cmp 2>/dev/null"):gsub("%s+", "")
   local mise_src = vim.fn.system("mise where http:blink-cmp 2>/dev/null"):gsub("%s+", "")
-  if mise_bin == "" or mise_src == "" then return end
+  if mise_bin == "" or mise_src == "" then
+    vim.notify("blink.cmp: mise where returned empty (mise installed? run mise install?)", vim.log.levels.WARN)
+    return
+  end
 
   -- mise's github backend strips both extension and OS suffix from asset names
   local arch = (jit.arch == "arm64" or jit.arch == "aarch64") and "aarch64" or "x86_64"
@@ -37,9 +41,8 @@ local function link_blink_binary()
   end
 
   vim.fn.mkdir(target_dir, "p")
-  if vim.fn.filereadable(target) == 0 then
-    vim.fn.system({ "ln", "-sf", source, target })
-  end
+  -- Always re-link to pick up mise version upgrades (ln -sf is atomic)
+  vim.fn.system({ "ln", "-sf", source, target })
 end
 
 return {
@@ -322,3 +325,4 @@ return {
     lazy = false,
   },
 }
+

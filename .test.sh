@@ -77,7 +77,7 @@ $RUNNER run --rm chezmoi-test zsh -ic '
 
     echo "[6] lockfile..."
     if [ -f "$HOME/.config/nvim/lazy-lock.json" ]; then
-        count=$(grep -oP "\"\\w+" "$HOME/.config/nvim/lazy-lock.json" | sort -u | wc -l)
+        count=$(grep -oP '^\s*"\K[^"]+' "$HOME/.config/nvim/lazy-lock.json" | sort -u | wc -l)
         echo "  ✓ lazy-lock.json ($count entries)"
     else
         echo "  ✗ lazy-lock.json MISSING"
@@ -96,10 +96,12 @@ $RUNNER run --rm chezmoi-test zsh -ic '
     echo "=== smoke test complete ==="
 ' 2>&1 | grep -v "bindkey\|tput\|zle\|zsh:"
 
-echo ""
-echo "Dropping into interactive container..."
-$RUNNER run \
-    --rm \
-    -it \
-    -v ~/.local/share/chezmoi:/root/.local/share/chezmoi \
-    chezmoi-test
+if [ -t 0 ]; then
+    echo ""
+    echo "Dropping into interactive container..."
+    $RUNNER run \
+        --rm \
+        -it \
+        -v ~/.local/share/chezmoi:/root/.local/share/chezmoi \
+        chezmoi-test
+fi
