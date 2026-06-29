@@ -26,10 +26,12 @@ local function link_blink_binary()
   local os_name = jit.os:lower()
   local triple = arch .. "-unknown-" .. (os_map[os_name] or "linux-gnu")
   local ext = (os_name == "mac" or os_name == "osx") and ".dylib" or (os_name == "windows") and ".dll" or ".so"
+  -- mise strips the extension from the GitHub release asset name
+  local bin_name = triple
 
   local target_dir = mise_src .. "/target/release"
   local target = target_dir .. "/libblink_cmp_fuzzy" .. ext
-  local source = mise_bin .. "/" .. triple .. ext
+  local source = mise_bin .. "/" .. bin_name
 
   if vim.fn.executable(source) == 0 then
     vim.notify("blink.cmp binary not found at " .. source, vim.log.levels.WARN)
