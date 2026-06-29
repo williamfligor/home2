@@ -21,13 +21,11 @@ local function link_blink_binary()
   local mise_src = vim.fn.system("mise where http:blink-cmp 2>/dev/null"):gsub("%s+", "")
   if mise_bin == "" or mise_src == "" then return end
 
+  -- mise's github backend strips both extension and OS suffix from asset names
   local arch = (jit.arch == "arm64" or jit.arch == "aarch64") and "aarch64" or "x86_64"
-  local os_map = { linux = "linux-gnu", osx = "apple-darwin", mac = "apple-darwin", windows = "pc-windows-msvc" }
+  local bin_name = arch .. "-unknown"
   local os_name = jit.os:lower()
-  local triple = arch .. "-unknown-" .. (os_map[os_name] or "linux-gnu")
   local ext = (os_name == "mac" or os_name == "osx") and ".dylib" or (os_name == "windows") and ".dll" or ".so"
-  -- mise strips the extension from the GitHub release asset name
-  local bin_name = triple
 
   local target_dir = mise_src .. "/target/release"
   local target = target_dir .. "/libblink_cmp_fuzzy" .. ext
