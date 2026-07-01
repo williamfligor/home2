@@ -31,6 +31,7 @@ bat = "latest"
 zellij = "latest"
 ast-grep = "latest"
 difftastic = "latest"
+"github:BIRSAx2/mdcat" = "latest"
 
 # ── GitHub-only (not in mise registry) ───────────────────────
 "antigravity-cli" = "latest"
