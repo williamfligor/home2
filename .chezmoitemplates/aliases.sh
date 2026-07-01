@@ -39,7 +39,5 @@ alias czma="chezmoi merge-all"
 alias czet="chezmoi execute-template"
 
 # ZMX
-alias zl='zmx-local-new'
-alias zla='zmx-local-attach'
-alias zs='zmx-ssh-new'
-alias zsa='zmx-ssh-attach'
+alias zs='zmx-ssh'
+alias zl='zmx-local'

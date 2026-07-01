@@ -1,45 +1,78 @@
 #!/usr/bin/env bash
 # ZMX session picker — fzf over zmx list with preview
+# Ctrl-N: create new session  |  Ctrl-K: kill session
 set -euo pipefail
 
-display=$(zmx list 2>/dev/null | while IFS=$'\t' read -r name pid clients created dir; do
-  name=${name#*name=}
-  pid=${pid#*pid=}
-  clients=${clients#*clients=}
-  dir=${dir#*start_dir=}
-  printf "%-20s  pid:%-8s  clients:%-2s  %s\n" "$name" "$pid" "$clients" "$dir"
-done)
+fetch_sessions() {
+  zmx list 2>/dev/null | while IFS=$'\t' read -r name pid clients created dir; do
+    name=${name#*name=}
+    pid=${pid#*pid=}
+    clients=${clients#*clients=}
+    dir=${dir#*start_dir=}
+    printf "%-20s  pid:%-8s  clients:%-2s  %s\n" "$name" "$pid" "$clients" "$dir"
+  done
+}
 
-if [[ -z "$display" ]]; then
-  echo "No ZMX sessions found." >&2
-  exit 1
-fi
+while true; do
+  display=$(fetch_sessions)
 
-output=$(fzf \
-  --print-query \
-  --expect=ctrl-n \
-  --height=80% \
-  --reverse \
-  --prompt="zmx> " \
-  --header="Enter: select | Ctrl-N: create new" \
-  --preview='zmx history {1}' \
-  --preview-window=right:60%:follow \
-  <<< "$display"
-)
-rc=$?
+  if [[ -z "$display" ]]; then
+    rand=$(LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom 2>/dev/null | head -c4 || echo "$RANDOM$RANDOM" | head -c4)
+    session_name="r${rand}"
+    break
+  fi
 
-query=$(echo "$output"  | sed -n '1p')
-key=$(echo "$output"    | sed -n '2p')
-selected=$(echo "$output" | sed -n '3p')
+  header="Enter:select  ^N:new  ^K:kill"
 
-if [[ "$key" == "ctrl-n" && -n "$query" ]]; then
-  session_name="$query"
-elif [[ $rc -eq 0 && -n "$selected" ]]; then
-  session_name=$(echo "$selected" | awk '{print $1}')
-elif [[ -n "$query" ]]; then
-  session_name="$query"
-else
-  exit 130
-fi
+  output=$(fzf \
+      --print-query \
+      --expect=ctrl-k \
+      --bind "ctrl-n:become(echo ZMXN:{q})" \
+      --height=80% \
+      --reverse \
+      --prompt="zmx> " \
+      --header="$header" \
+      --preview='zmx history {1} 2>/dev/null' \
+      --preview-window=right:60%:follow \
+      <<< "$display" \
+    | tr -d '\r' \
+  )
+  rc=$?
+
+  # Ctrl-N via become — output is just "ZMXN:<query>"
+  if [[ "$output" == ZMXN:* ]]; then
+    session_name="${output#ZMXN:}"
+    if [[ -z "$session_name" ]]; then
+      rand=$(LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom 2>/dev/null | head -c4 || echo "$RANDOM$RANDOM" | head -c4)
+      session_name="r${rand}"
+    fi
+    break
+  fi
+
+  query=$(printf '%s\n' "$output"    | sed -n '1p')
+  key=$(printf '%s\n' "$output"      | sed -n '2p')
+  selected=$(printf '%s\n' "$output" | sed -n '3p')
+
+  # Ctrl-K: kill selected session (with confirmation)
+  if [[ "$key" == "ctrl-k" && -n "$selected" ]]; then
+    name=$(printf '%s\n' "$selected" | awk -F'  ' '{print $1}' | sed 's/ *$//')
+    read -r -p "Kill session '$name'? [y/N] " confirm
+    if [[ "$confirm" =~ ^[yY] ]]; then
+      zmx kill "$name"
+    fi
+    continue  # refresh list
+  fi
+
+  # Enter or typed query / selection: determine session name
+  if [[ $rc -eq 0 && -n "$selected" ]]; then
+    session_name=$(printf '%s\n' "$selected" | awk -F'  ' '{print $1}' | sed 's/ *$//')
+  elif [[ -n "$query" ]]; then
+    session_name="$query"
+  else
+    exit 130
+  fi
+
+  break
+done
 
 exec zmx attach "$session_name"

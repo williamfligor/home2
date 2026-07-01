@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Attach to (or create) a ZMX session.
+#
+# Usage:
+#   zmx-local                              fzf picker
+#   zmx-local <name>                       attach to (or create) <name>
+#   zmx-local a[ttach] [name]              attach (picker if no name)
+#   zmx-local c[reate] [name]              create (random r<4chars> if no name)
+#
+# When creating a new session, cd's to last-known interactive cwd first.
+set -euo pipefail
+
+# ── Parse optional action ────────────────────────────────────────────
+action=""
+case "${1:-}" in
+  a|at|att|atta|attac|attach) action="attach"; shift ;;
+  c|cr|cre|crea|creat|create) action="create"; shift ;;
+esac
+
+session_name="${1:-}"
+
+# ── Determine session name when not given ────────────────────────────
+if [[ -z "$session_name" ]]; then
+  case "$action" in
+    attach)
+      exec zmx-select
+      ;;
+    create)
+      rand=$(LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom 2>/dev/null | head -c4 || echo "$RANDOM$RANDOM" | head -c4)
+      session_name="r${rand}"
+      ;;
+    "")
+      # No action, no name — picker (shorthand for zmx-local a)
+      exec zmx-select
+      ;;
+  esac
+fi
+
+# ── If creating a new session, cd to last known cwd ─────────────────
+if ! zmx list --short 2>/dev/null | grep -qxF "$session_name"; then
+  cwd_file="${XDG_CACHE_HOME:-$HOME/.cache}/zmx-cwd"
+  if [[ -f "$cwd_file" ]]; then
+    cd "$(<"$cwd_file")" 2>/dev/null || true
+  fi
+fi
+
+exec zmx attach "$session_name"

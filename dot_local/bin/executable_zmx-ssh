@@ -1,0 +1,192 @@
+#!/usr/bin/env bash
+# zmx-ssh — persistent ZMX sessions over SSH via autossh
+#
+# Usage:
+#   zmx-ssh [flags] a[ttach] <host> [session_name] [flags]
+#   zmx-ssh [flags] c[reate] <host> [session_name] [flags]
+#
+# Flags (accepted anywhere, survive picker re-exec):
+#   --alive-interval N     ServerAliveInterval  (default: 15)
+#   --alive-count-max N    ServerAliveCountMax   (default: 3)
+#   --autossh-debug        set AUTOSSH_DEBUG=1 for verbose reconnect logging
+#   -o key=value           passthrough to ssh
+#
+# Examples:
+#   zmx-ssh --alive-interval 30 a host
+#   zmx-ssh a host mysession --autossh-debug
+#   zmx-ssh c host -o ExitOnForwardFailure=yes --alive-count-max 5
+set -euo pipefail
+
+usage() {
+  echo "Usage:" >&2
+  echo "  zmx-ssh a[ttach] <host> [session_name] [flags]" >&2
+  echo "  zmx-ssh c[reate] <host> [session_name] [flags]" >&2
+  echo "" >&2
+  echo "Flags: --alive-interval N  --alive-count-max N  --autossh-debug  -o key=value" >&2
+  exit 1
+}
+
+# ── Parse all arguments (flags + positionals, single pass) ───────────
+alive_interval="${SSH_ALIVE_INTERVAL:-15}"
+alive_count_max="${SSH_ALIVE_COUNTMAX:-3}"
+autossh_debug=""
+action=""
+host=""
+session_name=""
+extra_ssh_opts=()
+passthrough_flags=()   # preserved for picker re-exec
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --alive-interval)
+      alive_interval="${2:?--alive-interval requires a value}"
+      passthrough_flags+=("$1" "$2")
+      shift 2
+      ;;
+    --alive-count-max)
+      alive_count_max="${2:?--alive-count-max requires a value}"
+      passthrough_flags+=("$1" "$2")
+      shift 2
+      ;;
+    --autossh-debug)
+      autossh_debug=1
+      passthrough_flags+=("$1")
+      shift
+      ;;
+    -o)
+      extra_ssh_opts+=(-o "${2:?-o requires a key=value}")
+      passthrough_flags+=("$1" "$2")
+      shift 2
+      ;;
+    --)
+      shift
+      ;;
+    *)
+      # Positional: action, host, session_name (in order)
+      if [[ -z "$action" ]]; then
+        case "$1" in
+          a|at|att|atta|attac|attach) action="attach" ;;
+          c|cr|cre|crea|creat|create) action="create" ;;
+          *) echo "zmx-ssh: expected action (a/attach or c/create), got '$1'" >&2; usage ;;
+        esac
+      elif [[ -z "$host" ]]; then
+        host="$1"
+      elif [[ -z "$session_name" ]]; then
+        session_name="$1"
+      else
+        echo "zmx-ssh: unexpected argument '$1'" >&2
+        usage
+      fi
+      shift
+      ;;
+  esac
+done
+
+[[ -n "$action" ]] || { echo "zmx-ssh: action required" >&2; usage; }
+[[ -n "$host" ]]   || { echo "zmx-ssh: host required" >&2; usage; }
+
+# ── Determine session name when not given ────────────────────────────
+if [[ -z "$session_name" ]]; then
+  case "$action" in
+    attach)
+      # Remote picker loop: Ctrl-N to create, Ctrl-K to kill, Enter to select.
+      # Re-fetches list after each kill so the display stays current.
+      while true; do
+        display=$(ssh "$host" 'zmx list 2>/dev/null' 2>/dev/null \
+          | while IFS=$'\t' read -r name pid clients created dir; do
+              name=${name#*name=}
+              pid=${pid#*pid=}
+              clients=${clients#*clients=}
+              dir=${dir#*start_dir=}
+              printf "%-24s  pid:%-8s  clients:%-2s  %s\n" "$name" "$pid" "$clients" "$dir"
+            done)
+
+        if [[ -z "$display" ]]; then
+          # No sessions on remote — auto-create with random name
+          rand=$(LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom 2>/dev/null | head -c4 || echo "$RANDOM$RANDOM" | head -c4)
+          session_name="r${rand}"
+          break
+        fi
+
+        header="$host — Enter:select  ^N:new  ^K:kill"
+
+        output=$(echo "$display" \
+          | fzf \
+              --print-query \
+              --expect=ctrl-k \
+              --bind "ctrl-n:become(echo ZMXN:{q})" \
+              --header="$header" \
+              --prompt="zmx> " \
+          | tr -d '\r' \
+        )
+        rc=$?
+
+        # Ctrl-N via become — output is just "ZMXN:<query>"
+        if [[ "$output" == ZMXN:* ]]; then
+          session_name="${output#ZMXN:}"
+          if [[ -z "$session_name" ]]; then
+            rand=$(LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom 2>/dev/null | head -c4 || echo "$RANDOM$RANDOM" | head -c4)
+            session_name="r${rand}"
+          fi
+          break
+        fi
+
+        query=$(printf '%s\n' "$output"    | sed -n '1p')
+        key=$(printf '%s\n' "$output"      | sed -n '2p')
+        selected=$(printf '%s\n' "$output" | sed -n '3p')
+
+        # Ctrl-K: kill selected remote session (with confirmation)
+        if [[ "$key" == "ctrl-k" && -n "$selected" ]]; then
+          name=$(printf '%s\n' "$selected" | awk -F'  ' '{print $1}' | sed 's/ *$//')
+          read -r -p "Kill session '$name' on $host? [y/N] " confirm
+          if [[ "$confirm" =~ ^[yY] ]]; then
+            ssh "$host" zmx kill "$name"
+          fi
+          continue  # refresh list
+        fi
+
+        # Enter or typed query / selection: determine session name
+        if [[ $rc -eq 0 && -n "$selected" ]]; then
+          session_name=$(printf '%s\n' "$selected" | awk -F'  ' '{print $1}' | sed 's/ *$//')
+        elif [[ -n "$query" ]]; then
+          session_name="$query"
+        else
+          exit 130
+        fi
+
+        break
+      done
+
+      echo "zmx-ssh: re-exec → $action $session_name on $host" >&2
+      if (( ${#passthrough_flags[@]} )); then
+        exec "$0" "$action" "$host" -- "$session_name" "${passthrough_flags[@]}"
+      else
+        exec "$0" "$action" "$host" -- "$session_name"
+      fi
+      ;;
+
+    create)
+      rand=$(LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom 2>/dev/null | head -c4 || echo "$RANDOM$RANDOM" | head -c4)
+      session_name="r${rand}"
+      ;;
+  esac
+fi
+
+# ── Launch autossh ───────────────────────────────────────────────────
+ssh_opts=(
+  -o ControlPersist=no
+  -o ControlMaster=no
+  -o ServerAliveInterval="$alive_interval"
+  -o ServerAliveCountMax="$alive_count_max"
+  -o ExitOnForwardFailure=no
+)
+if (( ${#extra_ssh_opts[@]} )); then
+  ssh_opts+=("${extra_ssh_opts[@]}")
+fi
+
+if [[ -n "$autossh_debug" ]]; then
+  export AUTOSSH_DEBUG=1
+fi
+
+echo "zmx-ssh: launching autossh → $host zmx-local $session_name" >&2
+exec autossh -M 0 -q "${ssh_opts[@]}" -t -- "$host" zmx-local "$session_name"
