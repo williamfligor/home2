@@ -61,7 +61,7 @@ $RUNNER run --rm chezmoi-test zsh -ic '
 
     echo "[4] mise-installed plugin dirs..."
     for plugin in lazy-nvim nvim-lspconfig blink-cmp sidekick-nvim snacks-nvim; do
-        dir="$HOME/.local/share/mise/installs/http-$plugin/vlatest"
+        dir="$HOME/.local/share/mise/installs/http-$plugin/latest"
         if [ -d "$dir" ]; then
             echo "  ✓ http-$plugin ($dir)"
         else
