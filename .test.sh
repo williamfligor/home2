@@ -13,9 +13,10 @@ fi
 echo "Using $RUNNER"
 
 # Use buildx for --secret support
-# Use BuildKit cache mount when available (GitHub Actions restores to /tmp/.buildx-cache)
+# Use BuildKit cache mount when available (GitHub Actions restores to /tmp/.buildx-cache).
+# Docker BuildKit syntax only — podman/buildah don't support type=local cache.
 CACHE_ARGS=()
-if [ -d /tmp/.buildx-cache ]; then
+if [ "$RUNNER" = "docker" ] && [ -d /tmp/.buildx-cache ]; then
     CACHE_ARGS=(--cache-from=type=local,src=/tmp/.buildx-cache --cache-to=type=local,dest=/tmp/.buildx-cache,mode=max)
 fi
 $RUNNER buildx build \
