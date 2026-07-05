@@ -265,23 +265,13 @@ pandoc = "latest"
 }
 
 # ── macOS .app bundles ─────────────────────────────────────
-# These tools are macOS-only .app bundles. mise skips installation
-# on other platforms (no matching platform URL → no-op).
-
-# Default URL is a tiny .gitignore (~100 bytes) for unsupported platforms (Linux).
-# macOS platform entries download the actual .app bundle.
-#
-# GitHub /releases/latest API returns the latest non-prerelease release.
-# version_json_path=".tag_name" returns the tag name with "v" prefix auto-stripped.
-# For repos without releases (e.g. Ghostty), git/refs/tags is used instead.
-
-# Ice tags don't have a v prefix (e.g. 0.11.12), so URLs use
-# {{ version }} directly without the extra "v".
+# Pinned versions + os restriction avoids the .gitignore fallback
+# and mise's flaky "latest" resolution from version_list_url.
+# postinstall copies the .app into ~/Applications/.
 "http:ice" = {
-  version = "latest",
-  url = "https://raw.githubusercontent.com/jordanbaird/Ice/{{ version }}/.gitignore",
-  version_list_url = "https://api.github.com/repos/jordanbaird/Ice/releases/latest",
-  version_json_path = ".tag_name",
+  version = "0.11.12",
+  os = ["macos"],
+  postinstall = "install-macos-apps http:ice",
   platforms = {
     macos-x64 = { url = "https://github.com/jordanbaird/Ice/releases/download/{{ version }}/Ice.zip" },
     macos-arm64 = { url = "https://github.com/jordanbaird/Ice/releases/download/{{ version }}/Ice.zip" },
@@ -289,24 +279,19 @@ pandoc = "latest"
 }
 
 "http:xbar" = {
-  version = "latest",
-  url = "https://raw.githubusercontent.com/matryer/xbar/v{{ version }}/.gitignore",
-  version_list_url = "https://api.github.com/repos/matryer/xbar/releases/latest",
-  version_json_path = ".tag_name",
-  prerelease = true,
+  version = "2.1.7-beta",
+  os = ["macos"],
+  postinstall = "install-macos-apps http:xbar",
   platforms = {
     macos-x64 = { url = "https://github.com/matryer/xbar/releases/download/v{{ version }}/xbar.v{{ version }}.zip" },
     macos-arm64 = { url = "https://github.com/matryer/xbar/releases/download/v{{ version }}/xbar.v{{ version }}.zip" },
   },
 }
 
-# ghostty doesn't publish GitHub Releases — only git tags.
-# Uses /git/refs/tags + version_regex to extract the numeric version.
 "http:ghostty" = {
-  version = "latest",
-  url = "https://raw.githubusercontent.com/ghostty-org/ghostty/v{{ version }}/.gitignore",
-  version_list_url = "https://api.github.com/repos/ghostty-org/ghostty/git/refs/tags",
-  version_regex = 'refs/tags/v?(\d+\.\d+\.\d+)',
+  version = "1.3.1",
+  os = ["macos"],
+  postinstall = "install-macos-apps http:ghostty",
   platforms = {
     macos-x64 = { url = "https://release.files.ghostty.org/{{ version }}/Ghostty.dmg" },
     macos-arm64 = { url = "https://release.files.ghostty.org/{{ version }}/Ghostty.dmg" },
@@ -314,10 +299,9 @@ pandoc = "latest"
 }
 
 "http:rectangle" = {
-  version = "latest",
-  url = "https://raw.githubusercontent.com/rxhanson/Rectangle/v{{ version }}/.gitignore",
-  version_list_url = "https://api.github.com/repos/rxhanson/Rectangle/releases/latest",
-  version_json_path = ".tag_name",
+  version = "0.96",
+  os = ["macos"],
+  postinstall = "install-macos-apps http:rectangle",
   platforms = {
     macos-x64 = { url = "https://github.com/rxhanson/Rectangle/releases/download/v{{ version }}/Rectangle{{ version }}.dmg" },
     macos-arm64 = { url = "https://github.com/rxhanson/Rectangle/releases/download/v{{ version }}/Rectangle{{ version }}.dmg" },
@@ -325,10 +309,9 @@ pandoc = "latest"
 }
 
 "http:stats" = {
-  version = "latest",
-  url = "https://raw.githubusercontent.com/exelban/stats/v{{ version }}/.gitignore",
-  version_list_url = "https://api.github.com/repos/exelban/stats/releases/latest",
-  version_json_path = ".tag_name",
+  version = "3.0.6",
+  os = ["macos"],
+  postinstall = "install-macos-apps http:stats",
   platforms = {
     macos-x64 = { url = "https://github.com/exelban/stats/releases/download/v{{ version }}/Stats.dmg" },
     macos-arm64 = { url = "https://github.com/exelban/stats/releases/download/v{{ version }}/Stats.dmg" },
