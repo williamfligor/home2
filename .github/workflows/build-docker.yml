@@ -9,6 +9,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - name: Checkout repository
@@ -28,16 +30,5 @@ jobs:
           restore-keys: |
             buildx-${{ runner.os }}-
 
-      - name: Build image from .Dockerfile
-        run: |
-          docker buildx build \
-            --cache-from=type=local,src=/tmp/.buildx-cache \
-            --cache-to=type=local,dest=/tmp/.buildx-cache,mode=max \
-            --load \
-            --secret id=github_token,env=GITHUB_TOKEN \
-            -f .Dockerfile \
-            -t test-image:ci .
-
-      - name: Verify image built
-        run: |
-          docker images test-image:ci
+      - name: Build and test
+        run: bash .test.sh
