@@ -5,13 +5,24 @@
 # ///
 """Install macOS .app bundles from mise http: backend installs.
 
-Reads mise install directories for known macOS applications and
-rsyncs the .app bundles into ~/Applications/. All archives are
-downloaded and extracted by mise — this script only handles the
-macOS-specific .app installation step.
+Usage:
+    install-macos-apps              # Install ALL known macOS apps from mise
+    install-macos-apps http:ice     # Install a single app (postinstall mode)
+
+For .zip-based tools (Ice, xbar):
+  Finds the raw .zip in ~/.local/share/mise/downloads/ and extracts with
+  macOS unzip(1) to preserve .app bundle metadata. Avoids mise's own
+  extraction which may corrupt .app bundles.
+
+For .dmg-based tools (Ghostty, Rectangle, Stats):
+  Mounts the .dmg with hdiutil(1) and copies the .app out.
+
+Always uses ditto(1) for the actual .app install (preserves resource forks,
+ACLs, code signatures) and drops the quarantine flag.
 """
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -20,11 +31,9 @@ from pathlib import Path
 
 
 DEST = Path.home() / "Applications"
+MISE_DOWNLOADS = Path.home() / ".local/share/mise/downloads"
 
 # macOS apps managed by mise http: backend
-# install_type:
-#   "zip" — mise extracts the archive and the .app bundle is in the install dir
-#   "dmg" — mise stores the .dmg file; we mount it to extract the .app
 APPS = {
     "http:ice": {"install_type": "zip", "app_name": "Ice"},
     "http:xbar": {"install_type": "zip", "app_name": "xbar"},
@@ -34,28 +43,51 @@ APPS = {
 }
 
 
-def find_app_bundle(path: Path, app_name: str) -> Path | None:
-    """Locate <app_name>.app in path.
+def _download_dir(tool_key: str, version: str) -> Path:
+    """Path to the raw downloaded file kept by mise (always_keep_download)."""
+    return MISE_DOWNLOADS / tool_key.replace(":", "-") / version
 
-    Handles two layouts:
-      - The install path *is* the .app bundle (Contents/ at root)
-      - The install path contains <name>.app/ as a subdirectory
-    """
-    # Check if path itself is the .app bundle
+
+def find_app_bundle(path: Path, app_name: str) -> Path | None:
+    """Locate <app_name>.app in path."""
     if (path / "Contents" / "Info.plist").is_file():
         return path
-
-    # Check for <app_name>.app subdirectory
     candidate = path / f"{app_name}.app"
     if candidate.is_dir():
         return candidate
-
-    # Search any top-level subdirectories
     for child in path.iterdir():
         if child.is_dir() and child.name.endswith(".app"):
             return child
-
     return None
+
+
+def install_zip_from_raw(tool_key: str, version: str, app_name: str) -> bool:
+    """Extract the raw .zip with macOS unzip(1) and install the .app."""
+    dl_dir = _download_dir(tool_key, version)
+    zips = list(dl_dir.glob("*.zip"))
+    if not zips:
+        print(f"  No .zip found in {dl_dir}", file=sys.stderr)
+        return False
+
+    zip_path = zips[0]
+    staging = tempfile.mkdtemp(prefix=f"{app_name.lower()}-zip-")
+
+    try:
+        subprocess.run(
+            ["unzip", "-q", str(zip_path), "-d", staging],
+            check=True,
+        )
+        app_bundle = find_app_bundle(Path(staging), app_name)
+        if app_bundle is None:
+            print(f"  {app_name}.app not found in extracted zip", file=sys.stderr)
+            return False
+        _install_app(app_bundle, app_name)
+        return True
+    except subprocess.CalledProcessError as exc:
+        print(f"  Failed to extract {zip_path.name}: {exc}", file=sys.stderr)
+        return False
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
 
 
 def install_dmg(install_path: Path, app_name: str) -> bool:
@@ -91,29 +123,70 @@ def install_dmg(install_path: Path, app_name: str) -> bool:
         shutil.rmtree(mount_point, ignore_errors=True)
 
 
-def install_zip(install_path: Path, app_name: str) -> bool:
-    """Install from a mise-extracted zip archive."""
-    app_bundle = find_app_bundle(install_path, app_name)
-    if app_bundle is None:
-        print(f"  {app_name}.app not found in {install_path}", file=sys.stderr)
-        return False
-    _install_app(app_bundle, app_name)
-    return True
-
-
 def _install_app(src: Path, app_name: str) -> None:
-    """Rsync a .app bundle to ~/Applications/."""
+    """Install a .app bundle into ~/Applications/ using ditto + atomic swap.
+
+    Uses ditto (not cp -R) to preserve bundle metadata (resource forks, ACLs).
+    Stages a fresh copy then swaps into place so re-installs / version upgrades
+    replace the bundle instead of nesting inside it.
+    Drops the quarantine flag so notarized bundles launch without the
+    "downloaded from the internet" prompt.
+    """
     dest = DEST / f"{app_name}.app"
+    staging = DEST / f".{app_name}.new.{os.getpid()}"
+
+    # Remove any stale staging directory
+    if staging.exists():
+        subprocess.run(["rm", "-rf", str(staging)], check=True)
+
+    # Stage with ditto (preserves metadata, handles bundles correctly)
+    subprocess.run(["ditto", str(src), str(staging)], check=True)
+
+    # Drop quarantine flag
+    subprocess.run(
+        ["xattr", "-dr", "com.apple.quarantine", str(staging)],
+        capture_output=True,
+    )
+
+    # Atomic swap: remove existing bundle, then move staged copy over
     if dest.exists():
         subprocess.run(["rm", "-rf", str(dest)], check=True)
-    subprocess.run(["rsync", "-a", f"{src}/", f"{dest}/"], check=True)
+    subprocess.run(["mv", str(staging), str(dest)], check=True)
     print(f"  Installed {app_name}.app")
 
 
-def main() -> int:
+def install_one(tool_key: str) -> bool:
+    """Install a single app using MISE_TOOL_INSTALL_PATH."""
+    info = APPS.get(tool_key)
+    if info is None:
+        print(f"Unknown tool: {tool_key}", file=sys.stderr)
+        print(f"Known tools: {', '.join(sorted(APPS))}", file=sys.stderr)
+        return False
+
+    install_path_str = os.environ.get("MISE_TOOL_INSTALL_PATH", "")
+    if not install_path_str:
+        print(f"MISE_TOOL_INSTALL_PATH not set — cannot install {tool_key}", file=sys.stderr)
+        return False
+
+    install_path = Path(install_path_str)
+    if not install_path.is_dir():
+        print(f"Install path missing: {install_path}", file=sys.stderr)
+        return False
+
+    version = install_path.name
+    app_name = info["app_name"]
+    print(f"Installing {app_name} (version {version})...")
+
+    if info["install_type"] == "dmg":
+        return install_dmg(install_path, app_name)
+    else:
+        return install_zip_from_raw(tool_key, version, app_name)
+
+
+def install_all() -> int:
+    """Install all known macOS apps from their mise install directories."""
     DEST.mkdir(parents=True, exist_ok=True)
 
-    # Build a map of tool_key -> install_path from mise
     try:
         mise_data = json.loads(
             subprocess.check_output(["mise", "ls", "--json"], text=True)
@@ -139,18 +212,27 @@ def main() -> int:
             print(f"{info['app_name']}: install path missing, skipping")
             continue
 
-        print(f"Installing {info['app_name']}...")
+        version = install_path.name
+        print(f"Installing {info['app_name']} (version {version})...")
 
         if info["install_type"] == "dmg":
             ok = install_dmg(install_path, info["app_name"])
         else:
-            ok = install_zip(install_path, info["app_name"])
+            ok = install_zip_from_raw(tool_key, version, info["app_name"])
 
         if ok:
             installed += 1
 
     print(f"=== {installed} macOS app(s) installed ===")
     return 0 if installed > 0 else 1
+
+
+def main() -> int:
+    if len(sys.argv) > 1:
+        tool_key = sys.argv[1]
+        return 0 if install_one(tool_key) else 1
+    else:
+        return install_all()
 
 
 if __name__ == "__main__":
