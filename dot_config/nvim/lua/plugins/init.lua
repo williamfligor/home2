@@ -4,14 +4,14 @@
 
 -- mise_dir resolves through mise's version symlink so consumers
 -- never need their version updated when the pin in mise.toml bumps.
--- Handles 'vlatest' (v-prefixed), 'rel_latest' (rel-prefixed), and 'latest'.
+-- Handles 'latest' (default), 'rel_latest' (rel-prefixed), 'vlatest' (legacy v-prefixed).
 local function mise_dir(name)
   local base = vim.fn.expand("$HOME/.local/share/mise/installs/http-" .. name)
-  for _, symlink in ipairs({ "vlatest", "rel_latest", "latest" }) do
+  for _, symlink in ipairs({ "latest", "rel_latest", "vlatest" }) do
     local path = base .. "/" .. symlink
     if vim.fn.isdirectory(path) == 1 then return path end
   end
-  vim.notify("mise_dir(" .. name .. "): no version symlink found (vlatest/rel_latest/latest), using base", vim.log.levels.WARN)
+  vim.notify("mise_dir(" .. name .. "): no version symlink found (latest/rel_latest/vlatest), using base", vim.log.levels.WARN)
   return base
 end
 

@@ -5,198 +5,263 @@ node = "lts"
 rust = "latest"
 uv = "latest"
 
-# ── CLI tools ────────────────────────────────────────────────
-fzf = "latest"
-tmux = "latest"
-neovim = "latest"
-pandoc = "latest"
-
-# ── Go tools ─────────────────────────────────────────────────
-lazygit = "latest"
-lazydocker = "latest"
-dive = "latest"
-glab = "latest"
-yq = "latest"
-"github:simeji/jid" = "latest"
-"github:ramonvermeulen/whosthere" = "latest"
-
-# ── Rust / aqua tools ───────────────────────────────────────
-fd = "latest"
-zoxide = "latest"
-yazi = "latest"
-ripgrep = "latest"
-eza = "latest"
-delta = "latest"
+# ── Shell & Terminal ────────────────────────────────────────
 bat = "latest"
+eza = "latest"
+fd = "latest"
+fzf = "latest"
+ripgrep = "latest"
+tmux = "latest"
+yazi = "latest"
 zellij = "latest"
-ast-grep = "latest"
-difftastic = "latest"
-"github:charmbracelet/glow" = "latest"
-
-# ── GitHub-only (not in mise registry) ───────────────────────
-"antigravity-cli" = "latest"
-"github:samwho/spacer" = "latest"
-"github:elkowar/pipr" = "latest"
-"github:tldr-pages/tlrc" = "latest"
-"github:fujiapple852/trippy" = "latest"
 "github:neurosnap/zmx" = "latest"
-"github:tree-sitter/tree-sitter" = "latest"
 
-# ── NPM packages ─────────────────────────────────────────────
+# ── Development ──────────────────────────────────────────────
+ast-grep = "latest"
+delta = "latest"
+difftastic = "latest"
+glab = "latest"
+lazygit = "latest"
+neovim = "latest"
+yq = "latest"
+"antigravity-cli" = "latest"
+"github:simeji/jid" = "latest"
+"github:tree-sitter/tree-sitter" = "latest"
 "npm:@earendil-works/pi-coding-agent" = "latest"
 
+# ── DevOps & Containers ──────────────────────────────────────
+dive = "latest"
+lazydocker = "latest"
+
+# ── Documentation & Writing ──────────────────────────────────
+pandoc = "latest"
+"github:charmbracelet/glow" = "latest"
+"github:tldr-pages/tlrc" = "latest"
+
+# ── Network & Diagnostics ────────────────────────────────────
+"github:fujiapple852/trippy" = "latest"
+"github:ramonvermeulen/whosthere" = "latest"
+
 # ── Zsh plugins ────────────────────────────────────────────
+
+# Commit-hash pinned.
 "http:oh-my-zsh" = {
   version = "0.0.1",
   url = "https://github.com/ohmyzsh/ohmyzsh/archive/62afbdebb96bf91c044a92b75d86f85a67da67a7.zip",
   strip_components = 1,
 }
+
 "http:zsh-syntax-highlighting" = {
   version = "0.8.0",
-  url = "https://github.com/zsh-users/zsh-syntax-highlighting/archive/refs/tags/0.8.0.tar.gz",
+  url = "https://github.com/zsh-users/zsh-syntax-highlighting/archive/refs/tags/{{ version }}.tar.gz",
   strip_components = 1,
 }
+
+# Commit-hash pinned.
 "http:vi-mode" = {
   version = "0.0.1",
   url = "https://github.com/sineto/vi-mode/archive/2f84dd922cdcceff62ef40ea1a5495c30dcbb280.tar.gz",
   strip_components = 1,
 }
+
 "http:zsh-you-should-use" = {
   version = "1.11.1",
-  url = "https://github.com/MichaelAquilina/zsh-you-should-use/archive/refs/tags/1.11.1.tar.gz",
-  strip_components = 1,
-}
-"http:powerlevel10k" = {
-  version = "v1.20.0",
-  url = "https://github.com/romkatv/powerlevel10k/archive/v1.20.0.tar.gz",
+  url = "https://github.com/MichaelAquilina/zsh-you-should-use/archive/refs/tags/{{ version }}.tar.gz",
   strip_components = 1,
 }
 
+"http:powerlevel10k" = {
+  version = "latest",
+  url = "https://github.com/romkatv/powerlevel10k/archive/v{{ version }}.tar.gz",
+  strip_components = 1,
+  version_list_url = "https://api.github.com/repos/romkatv/powerlevel10k/releases/latest",
+  version_json_path = ".tag_name",
+}
+
 # ── Tmux plugins ───────────────────────────────────────────
+
 "http:tmux-themepack" = {
   version = "1.1.0",
-  url = "https://github.com/jimeh/tmux-themepack/archive/refs/tags/1.1.0.tar.gz",
+  url = "https://github.com/jimeh/tmux-themepack/archive/refs/tags/{{ version }}.tar.gz",
   strip_components = 1,
 }
+
 "http:tmux-pain-control" = {
-  version = "v1.0.0",
-  url = "https://github.com/tmux-plugins/tmux-pain-control/archive/refs/tags/v1.0.0.tar.gz",
+  version = "1.0.0",
+  url = "https://github.com/tmux-plugins/tmux-pain-control/archive/refs/tags/v{{ version }}.tar.gz",
   strip_components = 1,
 }
+
 "http:tmux-yank" = {
-  version = "v2.3.0",
-  url = "https://github.com/tmux-plugins/tmux-yank/archive/refs/tags/v2.3.0.tar.gz",
+  version = "latest",
+  url = "https://github.com/tmux-plugins/tmux-yank/archive/refs/tags/v{{ version }}.tar.gz",
   strip_components = 1,
+  version_list_url = "https://api.github.com/repos/tmux-plugins/tmux-yank/releases/latest",
+  version_json_path = ".tag_name",
 }
+
 "http:tmux-copycat" = {
-  version = "v3.0.0",
-  url = "https://github.com/tmux-plugins/tmux-copycat/archive/refs/tags/v3.0.0.tar.gz",
+  version = "3.0.0",
+  url = "https://github.com/tmux-plugins/tmux-copycat/archive/refs/tags/v{{ version }}.tar.gz",
   strip_components = 1,
 }
+
 "http:tmux-sensible" = {
-  version = "v3.0.0",
-  url = "https://github.com/tmux-plugins/tmux-sensible/archive/refs/tags/v3.0.0.tar.gz",
+  version = "3.0.0",
+  url = "https://github.com/tmux-plugins/tmux-sensible/archive/refs/tags/v{{ version }}.tar.gz",
   strip_components = 1,
 }
+
 "http:vim-tmux-navigator" = {
-  version = "v1.0",
-  url = "https://github.com/christoomey/vim-tmux-navigator/archive/refs/tags/v1.0.tar.gz",
+  version = "1.0",
+  url = "https://github.com/christoomey/vim-tmux-navigator/archive/refs/tags/v{{ version }}.tar.gz",
   strip_components = 1,
 }
 
 # ── Neovim plugins (stable, mise http: + lazy.nvim dir) ────
+
 "http:lazy-nvim" = {
-  version = "v11.17.5",
-  url = "https://github.com/folke/lazy.nvim/archive/refs/tags/v11.17.5.tar.gz",
+  version = "latest",
+  url = "https://github.com/folke/lazy.nvim/archive/refs/tags/v{{ version }}.tar.gz",
   strip_components = 1,
+  version_list_url = "https://api.github.com/repos/folke/lazy.nvim/releases/latest",
+  version_json_path = ".tag_name",
 }
+
 "http:solarized-nvim" = {
-  version = "v3.6.0",
-  url = "https://github.com/maxmx03/solarized.nvim/archive/refs/tags/v3.6.0.tar.gz",
+  version = "latest",
+  url = "https://github.com/maxmx03/solarized.nvim/archive/refs/tags/v{{ version }}.tar.gz",
   strip_components = 1,
+  version_list_url = "https://api.github.com/repos/maxmx03/solarized.nvim/releases/latest",
+  version_json_path = ".tag_name",
 }
+
+# tag is rel_6.1 — version_expr strips the rel_ prefix so
+# mise creates a plain "latest" symlink instead of "rel_latest".
 "http:undotree" = {
-  version = "rel_6.1",
-  url = "https://github.com/mbbill/undotree/archive/refs/tags/rel_6.1.tar.gz",
+  version = "latest",
+  url = "https://github.com/mbbill/undotree/archive/refs/tags/rel_{{ version }}.tar.gz",
   strip_components = 1,
+  version_list_url = "https://api.github.com/repos/mbbill/undotree/releases/latest",
+  version_expr = '[replace(fromJSON(body).tag_name, "rel_", "")]',
 }
+
 "http:editorconfig-nvim" = {
-  version = "v1.4.0",
-  url = "https://github.com/gpanders/editorconfig.nvim/archive/refs/tags/v1.4.0.tar.gz",
+  version = "latest",
+  url = "https://github.com/gpanders/editorconfig.nvim/archive/refs/tags/v{{ version }}.tar.gz",
   strip_components = 1,
+  version_list_url = "https://api.github.com/repos/gpanders/editorconfig.nvim/releases/latest",
+  version_json_path = ".tag_name",
 }
+
 "http:comment-nvim" = {
-  version = "v0.8.0",
-  url = "https://github.com/numToStr/Comment.nvim/archive/refs/tags/v0.8.0.tar.gz",
+  version = "latest",
+  url = "https://github.com/numToStr/Comment.nvim/archive/refs/tags/v{{ version }}.tar.gz",
   strip_components = 1,
+  version_list_url = "https://api.github.com/repos/numToStr/Comment.nvim/releases/latest",
+  version_json_path = ".tag_name",
 }
+
 "http:indent-blankline-nvim" = {
-  version = "v3.9.1",
-  url = "https://github.com/lukas-reineke/indent-blankline.nvim/archive/refs/tags/v3.9.1.tar.gz",
+  version = "latest",
+  url = "https://github.com/lukas-reineke/indent-blankline.nvim/archive/refs/tags/v{{ version }}.tar.gz",
   strip_components = 1,
+  version_list_url = "https://api.github.com/repos/lukas-reineke/indent-blankline.nvim/releases/latest",
+  version_json_path = ".tag_name",
 }
+
 "http:gitsigns-nvim" = {
-  version = "v2.1.0",
-  url = "https://github.com/lewis6991/gitsigns.nvim/archive/refs/tags/v2.1.0.tar.gz",
+  version = "latest",
+  url = "https://github.com/lewis6991/gitsigns.nvim/archive/refs/tags/v{{ version }}.tar.gz",
   strip_components = 1,
+  version_list_url = "https://api.github.com/repos/lewis6991/gitsigns.nvim/releases/latest",
+  version_json_path = ".tag_name",
 }
+
 "http:which-key-nvim" = {
-  version = "v3.17.0",
-  url = "https://github.com/folke/which-key.nvim/archive/refs/tags/v3.17.0.tar.gz",
+  version = "latest",
+  url = "https://github.com/folke/which-key.nvim/archive/refs/tags/v{{ version }}.tar.gz",
   strip_components = 1,
+  version_list_url = "https://api.github.com/repos/folke/which-key.nvim/releases/latest",
+  version_json_path = ".tag_name",
 }
+
 "http:vim-fugitive" = {
-  version = "v3.7",
-  url = "https://github.com/tpope/vim-fugitive/archive/refs/tags/v3.7.tar.gz",
+  version = "3.7",
+  url = "https://github.com/tpope/vim-fugitive/archive/refs/tags/v{{ version }}.tar.gz",
   strip_components = 1,
 }
+
+# Commit-hash pinned.
 "http:lualine-nvim" = {
   version = "0.0.1",
   url = "https://github.com/nvim-lualine/lualine.nvim/archive/221ce6b2d999187044529f49da6554a92f740a96.tar.gz",
   strip_components = 1,
 }
+
 "http:fzf" = {
-  version = "v0.73.1",
-  url = "https://github.com/junegunn/fzf/archive/refs/tags/v0.73.1.tar.gz",
+  version = "latest",
+  url = "https://github.com/junegunn/fzf/archive/refs/tags/v{{ version }}.tar.gz",
   strip_components = 1,
+  version_list_url = "https://api.github.com/repos/junegunn/fzf/releases/latest",
+  version_json_path = ".tag_name",
 }
+
+# Commit-hash pinned.
 "http:fzf-vim" = {
   version = "0.0.1",
   url = "https://github.com/junegunn/fzf.vim/archive/d2a59a992a2455f609c0fde2ebd84427ea8f919a.tar.gz",
   strip_components = 1,
 }
+
 "http:nvim-lspconfig" = {
-  version = "v2.10.0",
-  url = "https://github.com/neovim/nvim-lspconfig/archive/refs/tags/v2.10.0.tar.gz",
+  version = "latest",
+  url = "https://github.com/neovim/nvim-lspconfig/archive/refs/tags/v{{ version }}.tar.gz",
   strip_components = 1,
+  version_list_url = "https://api.github.com/repos/neovim/nvim-lspconfig/releases/latest",
+  version_json_path = ".tag_name",
 }
+
 "http:blink-cmp" = {
-  version = "v1.10.2",
-  url = "https://github.com/saghen/blink.cmp/archive/refs/tags/v1.10.2.tar.gz",
+  version = "latest",
+  url = "https://github.com/saghen/blink.cmp/archive/refs/tags/v{{ version }}.tar.gz",
   strip_components = 1,
+  version_list_url = "https://api.github.com/repos/saghen/blink.cmp/releases/latest",
+  version_json_path = ".tag_name",
 }
+
 "github:saghen/blink.cmp" = "v1.10.2"
+
 "http:sidekick-nvim" = {
-  version = "v2.3.0",
-  url = "https://github.com/folke/sidekick.nvim/archive/refs/tags/v2.3.0.tar.gz",
+  version = "latest",
+  url = "https://github.com/folke/sidekick.nvim/archive/refs/tags/v{{ version }}.tar.gz",
   strip_components = 1,
+  version_list_url = "https://api.github.com/repos/folke/sidekick.nvim/releases/latest",
+  version_json_path = ".tag_name",
 }
+
 "http:snacks-nvim" = {
-  version = "v2.31.0",
-  url = "https://github.com/folke/snacks.nvim/archive/refs/tags/v2.31.0.tar.gz",
+  version = "latest",
+  url = "https://github.com/folke/snacks.nvim/archive/refs/tags/v{{ version }}.tar.gz",
   strip_components = 1,
+  version_list_url = "https://api.github.com/repos/folke/snacks.nvim/releases/latest",
+  version_json_path = ".tag_name",
 }
+
 "http:nvim-web-devicons" = {
-  version = "v0.100",
-  url = "https://github.com/nvim-tree/nvim-web-devicons/archive/refs/tags/v0.100.tar.gz",
+  version = "0.100",
+  url = "https://github.com/nvim-tree/nvim-web-devicons/archive/refs/tags/v{{ version }}.tar.gz",
   strip_components = 1,
 }
 
 # ── Source-compiled tools ───────────────────────────────────
+
 "http:autossh" = {
-  version = "1.4f",
-  url = "https://github.com/Autossh/autossh/archive/refs/tags/v1.4f.tar.gz",
+  version = "latest",
+  url = "https://github.com/Autossh/autossh/archive/refs/tags/v{{ version }}.tar.gz",
   strip_components = 1,
+  version_list_url = "https://api.github.com/repos/Autossh/autossh/releases/latest",
+  version_json_path = ".tag_name",
 }
 
 # ── macOS .app bundles ─────────────────────────────────────
@@ -205,45 +270,70 @@ difftastic = "latest"
 
 # Default URL is a tiny .gitignore (~100 bytes) for unsupported platforms (Linux).
 # macOS platform entries download the actual .app bundle.
-[tools."http:ice"]
-version = "0.11.12"
-url = "https://raw.githubusercontent.com/jordanbaird/Ice/0.11.12/.gitignore"
+#
+# GitHub /releases/latest API returns the latest non-prerelease release.
+# version_json_path=".tag_name" returns the tag name with "v" prefix auto-stripped.
+# For repos without releases (e.g. Ghostty), git/refs/tags is used instead.
 
-[tools."http:ice".platforms]
-macos-x64 = { url = "https://github.com/jordanbaird/Ice/releases/download/0.11.12/Ice.zip" }
-macos-arm64 = { url = "https://github.com/jordanbaird/Ice/releases/download/0.11.12/Ice.zip" }
+# Ice tags don't have a v prefix (e.g. 0.11.12), so URLs use
+# {{ version }} directly without the extra "v".
+"http:ice" = {
+  version = "latest",
+  url = "https://raw.githubusercontent.com/jordanbaird/Ice/{{ version }}/.gitignore",
+  version_list_url = "https://api.github.com/repos/jordanbaird/Ice/releases/latest",
+  version_json_path = ".tag_name",
+  platforms = {
+    macos-x64 = { url = "https://github.com/jordanbaird/Ice/releases/download/{{ version }}/Ice.zip" },
+    macos-arm64 = { url = "https://github.com/jordanbaird/Ice/releases/download/{{ version }}/Ice.zip" },
+  },
+}
 
-[tools."http:xbar"]
-version = "2.1.7-beta"
-url = "https://raw.githubusercontent.com/matryer/xbar/v2.1.7-beta/.gitignore"
+"http:xbar" = {
+  version = "latest",
+  url = "https://raw.githubusercontent.com/matryer/xbar/v{{ version }}/.gitignore",
+  version_list_url = "https://api.github.com/repos/matryer/xbar/releases/latest",
+  version_json_path = ".tag_name",
+  prerelease = true,
+  platforms = {
+    macos-x64 = { url = "https://github.com/matryer/xbar/releases/download/v{{ version }}/xbar.v{{ version }}.zip" },
+    macos-arm64 = { url = "https://github.com/matryer/xbar/releases/download/v{{ version }}/xbar.v{{ version }}.zip" },
+  },
+}
 
-[tools."http:xbar".platforms]
-macos-x64 = { url = "https://github.com/matryer/xbar/releases/download/v2.1.7-beta/xbar.v2.1.7-beta.zip" }
-macos-arm64 = { url = "https://github.com/matryer/xbar/releases/download/v2.1.7-beta/xbar.v2.1.7-beta.zip" }
+# ghostty doesn't publish GitHub Releases — only git tags.
+# Uses /git/refs/tags + version_regex to extract the numeric version.
+"http:ghostty" = {
+  version = "latest",
+  url = "https://raw.githubusercontent.com/ghostty-org/ghostty/v{{ version }}/.gitignore",
+  version_list_url = "https://api.github.com/repos/ghostty-org/ghostty/git/refs/tags",
+  version_regex = 'refs/tags/v?(\d+\.\d+\.\d+)',
+  platforms = {
+    macos-x64 = { url = "https://release.files.ghostty.org/{{ version }}/Ghostty.dmg" },
+    macos-arm64 = { url = "https://release.files.ghostty.org/{{ version }}/Ghostty.dmg" },
+  },
+}
 
-[tools."http:ghostty"]
-version = "1.3.0"
-url = "https://raw.githubusercontent.com/ghostty-org/ghostty/v1.3.0/.gitignore"
+"http:rectangle" = {
+  version = "latest",
+  url = "https://raw.githubusercontent.com/rxhanson/Rectangle/v{{ version }}/.gitignore",
+  version_list_url = "https://api.github.com/repos/rxhanson/Rectangle/releases/latest",
+  version_json_path = ".tag_name",
+  platforms = {
+    macos-x64 = { url = "https://github.com/rxhanson/Rectangle/releases/download/v{{ version }}/Rectangle{{ version }}.dmg" },
+    macos-arm64 = { url = "https://github.com/rxhanson/Rectangle/releases/download/v{{ version }}/Rectangle{{ version }}.dmg" },
+  },
+}
 
-[tools."http:ghostty".platforms]
-macos-x64 = { url = "https://release.files.ghostty.org/1.3.0/Ghostty.dmg" }
-macos-arm64 = { url = "https://release.files.ghostty.org/1.3.0/Ghostty.dmg" }
-
-[tools."http:rectangle"]
-version = "0.96"
-url = "https://raw.githubusercontent.com/rxhanson/Rectangle/v0.96/.gitignore"
-
-[tools."http:rectangle".platforms]
-macos-x64 = { url = "https://github.com/rxhanson/Rectangle/releases/download/v0.96/Rectangle0.96.dmg" }
-macos-arm64 = { url = "https://github.com/rxhanson/Rectangle/releases/download/v0.96/Rectangle0.96.dmg" }
-
-[tools."http:stats"]
-version = "3.0.4"
-url = "https://raw.githubusercontent.com/exelban/stats/v3.0.4/.gitignore"
-
-[tools."http:stats".platforms]
-macos-x64 = { url = "https://github.com/exelban/stats/releases/download/v3.0.4/Stats.dmg" }
-macos-arm64 = { url = "https://github.com/exelban/stats/releases/download/v3.0.4/Stats.dmg" }
+"http:stats" = {
+  version = "latest",
+  url = "https://raw.githubusercontent.com/exelban/stats/v{{ version }}/.gitignore",
+  version_list_url = "https://api.github.com/repos/exelban/stats/releases/latest",
+  version_json_path = ".tag_name",
+  platforms = {
+    macos-x64 = { url = "https://github.com/exelban/stats/releases/download/v{{ version }}/Stats.dmg" },
+    macos-arm64 = { url = "https://github.com/exelban/stats/releases/download/v{{ version }}/Stats.dmg" },
+  },
+}
 
 [settings]
 go_set_gobin = true

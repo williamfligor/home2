@@ -13,9 +13,16 @@ fi
 echo "Using $RUNNER"
 
 # Use buildx for --secret support
+# Use BuildKit cache mount when available (GitHub Actions restores to /tmp/.buildx-cache).
+# Docker BuildKit syntax only — podman/buildah don't support type=local cache.
+CACHE_ARGS=()
+if [ "$RUNNER" = "docker" ] && [ -d /tmp/.buildx-cache ]; then
+    CACHE_ARGS=(--cache-from=type=local,src=/tmp/.buildx-cache --cache-to=type=local,dest=/tmp/.buildx-cache,mode=max)
+fi
 $RUNNER buildx build \
     --load \
     --progress=plain \
+    "${CACHE_ARGS[@]}" \
     --secret "id=github_token,env=GITHUB_TOKEN" \
     -t chezmoi-test -f .Dockerfile . # 2>&1 | tail -50
 
@@ -61,7 +68,7 @@ $RUNNER run --rm chezmoi-test zsh -ic '
 
     echo "[4] mise-installed plugin dirs..."
     for plugin in lazy-nvim nvim-lspconfig blink-cmp sidekick-nvim snacks-nvim; do
-        dir="$HOME/.local/share/mise/installs/http-$plugin/vlatest"
+        dir="$HOME/.local/share/mise/installs/http-$plugin/latest"
         if [ -d "$dir" ]; then
             echo "  ✓ http-$plugin ($dir)"
         else
