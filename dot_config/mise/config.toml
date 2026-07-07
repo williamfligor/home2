@@ -256,12 +256,11 @@ pandoc = "latest"
 
 # ── Source-compiled tools ───────────────────────────────────
 
+# Official upstream (GitHub mirror only has up to 1.4f)
 "http:autossh" = {
-  version = "latest",
-  url = "https://github.com/Autossh/autossh/archive/refs/tags/v{{ version }}.tar.gz",
+  version = "1.4g",
+  url = "https://www.harding.motd.ca/autossh/autossh-{{ version }}.tgz",
   strip_components = 1,
-  version_list_url = "https://api.github.com/repos/Autossh/autossh/releases/latest",
-  version_json_path = ".tag_name",
 }
 
 # ── macOS .app bundles ─────────────────────────────────────
