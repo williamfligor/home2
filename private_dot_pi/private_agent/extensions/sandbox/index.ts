@@ -278,11 +278,9 @@ export default function (pi: ExtensionAPI) {
 			sandboxEnabled = true;
 			sandboxInitialized = true;
 
-			const networkCount = config.network?.allowedDomains?.length ?? 0;
-			const writeCount = config.filesystem?.allowWrite?.length ?? 0;
 			ctx.ui.setStatus(
 				"sandbox",
-				ctx.ui.theme.fg("accent", `🔒 Sandbox: ${networkCount} domains, ${writeCount} write paths`),
+				ctx.ui.theme.fg("accent", "\udb80\udf3e"),
 			);
 			ctx.ui.notify("Sandbox initialized", "info");
 		} catch (err) {
@@ -333,12 +331,9 @@ export default function (pi: ExtensionAPI) {
 				}
 				sandboxEnabled = true;
 				ctx.ui.notify("Sandbox enabled", "success");
-				const config = loadConfig(ctx.cwd);
-				const networkCount = config.network?.allowedDomains?.length ?? 0;
-				const writeCount = config.filesystem?.allowWrite?.length ?? 0;
 				ctx.ui.setStatus(
 					"sandbox",
-					ctx.ui.theme.fg("accent", `🔒 Sandbox: ${networkCount} domains, ${writeCount} write paths`),
+					ctx.ui.theme.fg("accent", "\udb80\udf3e"),
 				);
 				return;
 			}
@@ -353,7 +348,7 @@ export default function (pi: ExtensionAPI) {
 					sandboxInitialized = false;
 				}
 				ctx.ui.notify("Sandbox disabled", "info");
-				ctx.ui.setStatus("sandbox", ctx.ui.theme.fg("accent", "🔓 Sandbox: disabled"));
+				ctx.ui.setStatus("sandbox", ctx.ui.theme.fg("accent", "\udb85\ude71"));
 				return;
 			}
 			// status or any other
