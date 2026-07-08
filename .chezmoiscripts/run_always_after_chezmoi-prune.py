@@ -251,28 +251,25 @@ def source_to_target(source_path: str, home: Path) -> Path | None:
     return target
 
 
-def currently_in_source(source_path: str, repo_root: Path) -> bool:
-    """Check if a source path still exists in the current repo state."""
-    # Check git tracked (with relative path for reliability)
+def get_current_targets(repo_root: Path, home: Path) -> set[Path]:
+    """Return the set of all $HOME target paths currently managed by the repo
+    (i.e. what every tracked source file maps to). This catches renames where
+    a file was given different chezmoi attribute prefixes but targets the same
+    path — e.g. dot_gitconfig.tmpl → private_dot_gitconfig.tmpl both target
+    ~/.gitconfig."""
     result = subprocess.run(
-        ["git", "ls-files", "--cached", "--error-unmatch", source_path],
-        capture_output=True,
-        cwd=repo_root,
+        ["git", "ls-files"],
+        capture_output=True, text=True, cwd=repo_root,
     )
-    if result.returncode == 0:
-        return True
-
-    # Check without .tmpl — the tracked file may not have a .tmpl suffix
-    if source_path.endswith(".tmpl"):
-        no_tmpl = source_path.removesuffix(".tmpl")
-        if currently_in_source(no_tmpl, repo_root):
-            return True
-
-    # Check working tree (the original path, e.g. dot_gitconfig.tmpl)
-    if (repo_root / source_path).exists():
-        return True
-
-    return False
+    targets: set[Path] = set()
+    for line in result.stdout.splitlines():
+        line = line.strip()
+        if not line or is_chezmoi_internal(line):
+            continue
+        target = source_to_target(line, home)
+        if target is not None:
+            targets.add(target)
+    return targets
 
 
 # ---------------------------------------------------------------------------
@@ -324,6 +321,11 @@ def main() -> None:
     if not deleted:
         return
 
+    # Build set of all target paths currently managed by the repo.
+    # This catches renames where a file was given different attribute
+    # prefixes but targets the same $HOME path.
+    current_targets = get_current_targets(repo_root, home) if not args.no_skip_existing else set()
+
     skip_internal = 0
     skip_existing = 0
     map_failed_count = 0
@@ -341,7 +343,7 @@ def main() -> None:
             map_failed_files.append(source_path)
             continue
 
-        if not args.no_skip_existing and currently_in_source(source_path, repo_root):
+        if target in current_targets:
             skip_existing += 1
             continue
 
