@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-chezmoi-prune (run_always_chezmoi-prune.py)
+chezmoi-prune (run_always_after_chezmoi-prune.py)
 
 Scans the git history of this chezmoi dotfiles repo for files that were
 deleted from the repo but whose installed counterparts still linger in
@@ -70,24 +70,37 @@ def find_repo_root() -> Path:
 # ---------------------------------------------------------------------------
 
 # Prefixes on the first path component that map to a dotfile in $HOME
-FIRST_COMPONENT_PREFIXES = {
-    "dot_": ".",
-    "private_dot_": ".",
-    "executable_dot_": ".",
-    "symlink_dot_": ".",
-    "encrypted_dot_": ".",
-    "modify_dot_": ".",
-    "readonly_dot_": ".",
-}
-
-# Prefixes on any path component that get stripped (attribute flags)
-COMPONENT_STRIP_PREFIXES = (
+# All chezmoi attribute prefixes that affect filename (must be sorted longest-first
+# so compound matches like "private_dot_" aren't subsumed by shorter ones).
+# "dot_" is special: it prepends a "." to the target name.
+# The rest are just stripped attributes (private, executable, symlink, etc.)
+ATTRIBUTE_PREFIXES = (
     "private_",
     "executable_",
     "symlink_",
     "encrypted_",
     "modify_",
     "readonly_",
+    "create_",
+    "empty_",
+    "exact_",
+    "once_",
+    "run_",
+    "dot_",
+)
+
+# Prefixes stripped from any path component (including first, where dot_ is
+# also handled separately below).
+STRIP_PREFIXES = (
+    "private_",
+    "executable_",
+    "symlink_",
+    "encrypted_",
+    "modify_",
+    "readonly_",
+    "create_",
+    "empty_",
+    "exact_",
     "once_",
     "run_",
 )
@@ -136,10 +149,16 @@ def is_chezmoi_internal(source_path: str) -> bool:
 
 
 def strip_component_prefixes(component: str) -> str:
-    """Strip chezmoi attribute prefixes from a single path component."""
-    for prefix in COMPONENT_STRIP_PREFIXES:
-        if component.startswith(prefix):
-            return component[len(prefix) :]
+    """Strip all chezmoi attribute prefixes from a single path component."""
+    while True:
+        matched = False
+        for prefix in STRIP_PREFIXES:
+            if component.startswith(prefix):
+                component = component[len(prefix) :]
+                matched = True
+                break  # restart from the top after each strip
+        if not matched:
+            break
     return component
 
 
@@ -169,19 +188,32 @@ def source_to_target(source_path: str, home: Path) -> Path | None:
 
     target_first: str | None = None
 
-    for prefix, replacement in FIRST_COMPONENT_PREFIXES.items():
-        if first.startswith(prefix):
-            target_first = replacement + first[len(prefix) :]
+    # Strip all known attribute prefixes from the first component,
+    # keeping track of whether "dot_" was seen (which prepends ".").
+    basename = first
+    has_dot = False
+    while True:
+        matched = False
+        for prefix in ATTRIBUTE_PREFIXES:
+            if basename.startswith(prefix):
+                basename = basename[len(prefix) :]
+                if prefix == "dot_":
+                    has_dot = True
+                matched = True
+                break
+        if not matched:
             break
 
-    if target_first is None:
-        # Top-level directories without a chezmoi prefix (Library/, data/, etc.)
-        # map directly to $HOME/name
-        if not first.startswith("."):
-            target_first = first
-        else:
-            # Top-level dotfiles/directories (.local/, .config/) map to home too
-            target_first = first
+    if has_dot:
+        target_first = "." + basename
+    elif first.startswith("."):
+        # Top-level dotfiles/directories (.local/, .config/) map to home
+        target_first = first
+    elif not first.startswith("."):
+        # Plain directories (Library/, data/) map directly
+        target_first = first
+    else:
+        return None
 
     remaining = [strip_component_prefixes(p) for p in parts[1:]]
 
@@ -194,23 +226,23 @@ def source_to_target(source_path: str, home: Path) -> Path | None:
 
 def currently_in_source(source_path: str, repo_root: Path) -> bool:
     """Check if a source path still exists in the current repo state."""
-    # Check git tracked
-    full = repo_root / source_path
+    # Check git tracked (with relative path for reliability)
     result = subprocess.run(
-        ["git", "ls-files", "--cached", "--error-unmatch", str(full)],
+        ["git", "ls-files", "--cached", "--error-unmatch", source_path],
         capture_output=True,
         cwd=repo_root,
     )
     if result.returncode == 0:
         return True
 
-    # Check without .tmpl
+    # Check without .tmpl — the tracked file may not have a .tmpl suffix
     if source_path.endswith(".tmpl"):
         no_tmpl = source_path.removesuffix(".tmpl")
-        return currently_in_source(no_tmpl, repo_root)
+        if currently_in_source(no_tmpl, repo_root):
+            return True
 
-    # Check working tree
-    if full.exists():
+    # Check working tree (the original path, e.g. dot_gitconfig.tmpl)
+    if (repo_root / source_path).exists():
         return True
 
     return False
