@@ -70,39 +70,50 @@ def find_repo_root() -> Path:
 # ---------------------------------------------------------------------------
 
 # Prefixes on the first path component that map to a dotfile in $HOME
-# All chezmoi attribute prefixes that affect filename (must be sorted longest-first
-# so compound matches like "private_dot_" aren't subsumed by shorter ones).
-# "dot_" is special: it prepends a "." to the target name.
-# The rest are just stripped attributes (private, executable, symlink, etc.)
+# All chezmoi attribute prefixes (from chezmoi.io/reference/source-state-attributes).
+# These are stripped iteratively during path mapping; "dot_" is tracked
+# separately because it's the only one that changes the target name (prepends ".").
+# "literal_" stops attribute parsing entirely.
 ATTRIBUTE_PREFIXES = (
-    "private_",
-    "executable_",
-    "symlink_",
-    "encrypted_",
-    "modify_",
-    "readonly_",
+    "after_",
+    "before_",
     "create_",
-    "empty_",
-    "exact_",
-    "once_",
-    "run_",
     "dot_",
+    "empty_",
+    "encrypted_",
+    "exact_",
+    "executable_",
+    "external_",
+    "literal_",
+    "modify_",
+    "once_",
+    "onchange_",
+    "private_",
+    "readonly_",
+    "remove_",
+    "run_",
+    "symlink_",
 )
 
-# Prefixes stripped from any path component (including first, where dot_ is
-# also handled separately below).
+# Prefixes stripped from any path component (no special behaviour for path).
 STRIP_PREFIXES = (
-    "private_",
-    "executable_",
-    "symlink_",
-    "encrypted_",
-    "modify_",
-    "readonly_",
+    "after_",
+    "before_",
     "create_",
     "empty_",
+    "encrypted_",
     "exact_",
+    "executable_",
+    "external_",
+    "literal_",
+    "modify_",
     "once_",
+    "onchange_",
+    "private_",
+    "readonly_",
+    "remove_",
     "run_",
+    "symlink_",
 )
 
 # Paths that shouldn't be installed to the home directory
@@ -149,12 +160,16 @@ def is_chezmoi_internal(source_path: str) -> bool:
 
 
 def strip_component_prefixes(component: str) -> str:
-    """Strip all chezmoi attribute prefixes from a single path component."""
+    """Strip all chezmoi attribute prefixes from a single path component.
+    The "literal_" prefix stops further stripping.
+    """
     while True:
         matched = False
         for prefix in STRIP_PREFIXES:
             if component.startswith(prefix):
                 component = component[len(prefix) :]
+                if prefix == "literal_":
+                    return component  # stop stripping
                 matched = True
                 break  # restart from the top after each strip
         if not matched:
@@ -170,9 +185,19 @@ def source_to_target(source_path: str, home: Path) -> Path | None:
     # Normalise — strip leading ./ prefix only, not dots from .dir names
     source = source_path.removeprefix("./")
 
-    # Strip trailing .tmpl
-    if source.endswith(".tmpl"):
-        source = source.removesuffix(".tmpl")
+    # Strip trailing suffixes: .tmpl (template), .age/.asc (encrypted),
+    # .literal (stop suffix parsing)
+    while source.endswith((".tmpl", ".age", ".asc", ".literal")):
+        if source.endswith(".tmpl"):
+            source = source.removesuffix(".tmpl")
+        elif source.endswith(".age"):
+            source = source.removesuffix(".age")
+        elif source.endswith(".asc"):
+            source = source.removesuffix(".asc")
+        elif source.endswith(".literal"):
+            source = source.removesuffix(".literal")
+        else:
+            break
 
     # Skip scripts / templates / externals
     if source.startswith((
@@ -186,19 +211,21 @@ def source_to_target(source_path: str, home: Path) -> Path | None:
     parts = source.split("/")
     first = parts[0]
 
-    target_first: str | None = None
-
     # Strip all known attribute prefixes from the first component,
     # keeping track of whether "dot_" was seen (which prepends ".").
+    # "literal_" stops prefix parsing.
     basename = first
     has_dot = False
-    while True:
+    literal_mode = False
+    while not literal_mode:
         matched = False
         for prefix in ATTRIBUTE_PREFIXES:
             if basename.startswith(prefix):
                 basename = basename[len(prefix) :]
                 if prefix == "dot_":
                     has_dot = True
+                if prefix == "literal_":
+                    literal_mode = True
                 matched = True
                 break
         if not matched:
@@ -206,12 +233,12 @@ def source_to_target(source_path: str, home: Path) -> Path | None:
 
     if has_dot:
         target_first = "." + basename
-    elif first.startswith("."):
+    elif basename.startswith("."):
         # Top-level dotfiles/directories (.local/, .config/) map to home
-        target_first = first
-    elif not first.startswith("."):
+        target_first = basename
+    elif not basename.startswith("."):
         # Plain directories (Library/, data/) map directly
-        target_first = first
+        target_first = basename
     else:
         return None
 
