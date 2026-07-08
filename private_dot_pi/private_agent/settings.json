@@ -27,24 +27,12 @@
   "hideThinkingBlock": true,
   "subagents": {
     "agentOverrides": {
-      "context-builder": {
-        "model": "llama-swap/qwen3.6-35b-a3b"
-      },
-      "planner": {
-        "model": "llama-swap/qwen3.6-35b-a3b"
-      },
-      "researcher": {
-        "model": "llama-swap/qwen3.6-35b-a3b"
-      },
-      "reviewer": {
-        "model": "llama-swap/qwen3.6-35b-a3b"
-      },
-      "scout": {
-        "model": "llama-swap/qwen3.6-35b-a3b"
-      },
-      "worker": {
-        "model": "llama-swap/qwen3.6-35b-a3b"
-      }
+      "context-builder": {},
+      "planner": {},
+      "researcher": {},
+      "reviewer": {},
+      "scout": {},
+      "worker": {}
     }
   }
 }
