@@ -32,8 +32,8 @@ while true; do
       --reverse \
       --prompt="zmx> " \
       --header="$header" \
-      --preview='zmx history {1} 2>/dev/null' \
-      --preview-window=right:60%:follow \
+      --preview='zmx history --vt {1} 2>/dev/null | sed "s/\x1b\[[0-9;]*[a-zA-Z]//g" | tail -n 50' \
+      --preview-window='right:60%:follow:nohidden' \
       <<< "$display" \
     | tr -d '\r' \
   )
