@@ -120,7 +120,7 @@ const DEFAULT_CONFIG: SandboxConfig = {
   },
   filesystem: {
     denyRead: ["/Users", "/home"],
-    allowRead: [".", "~/.config", "~/.local", "Library"],
+    allowRead: ["~/.config", "~/.local", "Library"],
     allowWrite: [".", "/tmp"],
     denyWrite: [".env", ".env.*", "*.pem", "*.key"],
   },
@@ -211,10 +211,23 @@ function deepMerge(base: SandboxConfig, overrides: Partial<SandboxConfig>): Sand
 
   if (overrides.enabled !== undefined) result.enabled = overrides.enabled;
   if (overrides.network) {
-    result.network = { ...base.network, ...overrides.network };
+    const net = { ...base.network };
+    const onet = overrides.network;
+    if (onet.allowedDomains !== undefined) net.allowedDomains = onet.allowedDomains;
+    if (onet.deniedDomains !== undefined) net.deniedDomains = onet.deniedDomains;
+    if (onet.parentProxy !== undefined) net.parentProxy = onet.parentProxy;
+    result.network = net;
   }
   if (overrides.filesystem) {
-    result.filesystem = { ...base.filesystem, ...overrides.filesystem };
+    // Only override individual filesystem keys that are actually specified
+    // (non-undefined). Empty arrays must not clobber base defaults.
+    const fs = { ...base.filesystem };
+    const ofs = overrides.filesystem;
+    if (ofs.allowRead !== undefined) fs.allowRead = ofs.allowRead;
+    if (ofs.denyRead !== undefined) fs.denyRead = ofs.denyRead;
+    if (ofs.allowWrite !== undefined) fs.allowWrite = ofs.allowWrite;
+    if (ofs.denyWrite !== undefined) fs.denyWrite = ofs.denyWrite;
+    result.filesystem = fs;
   }
 
   const extOverrides = overrides as {
@@ -369,7 +382,6 @@ function addDomainToConfig(configPath: string, domain: string): void {
     config.network = {
       ...config.network,
       allowedDomains: [...existing, domain],
-      deniedDomains: config.network?.deniedDomains ?? [],
     };
     writeConfigFile(configPath, config);
   }
@@ -382,9 +394,6 @@ function addReadPathToConfig(configPath: string, pathToAdd: string): void {
     config.filesystem = {
       ...config.filesystem,
       allowRead: [...existing, pathToAdd],
-      denyRead: config.filesystem?.denyRead ?? [],
-      allowWrite: config.filesystem?.allowWrite ?? [],
-      denyWrite: config.filesystem?.denyWrite ?? [],
     };
     writeConfigFile(configPath, config);
   }
@@ -397,87 +406,9 @@ function addWritePathToConfig(configPath: string, pathToAdd: string): void {
     config.filesystem = {
       ...config.filesystem,
       allowWrite: [...existing, pathToAdd],
-      denyRead: config.filesystem?.denyRead ?? [],
-      denyWrite: config.filesystem?.denyWrite ?? [],
     };
     writeConfigFile(configPath, config);
   }
-}
-
-// ── Sandboxed bash ops ────────────────────────────────────────────────────────
-
-function createSandboxedBashOps(shellPath?: string): BashOperations {
-  return {
-    async exec(command, cwd, { onData, signal, timeout, env }) {
-      if (!existsSync(cwd)) {
-        throw new Error(`Working directory does not exist: ${cwd}`);
-      }
-
-      const { shell, args } = getShellConfig(shellPath);
-      const wrappedCommand = await SandboxManager.wrapWithSandbox(command, shell);
-
-      return new Promise((resolve, reject) => {
-        const child = spawn(shell, [...args, wrappedCommand], {
-          cwd,
-          env,
-          detached: true,
-          stdio: ["ignore", "pipe", "pipe"],
-        });
-
-        let timedOut = false;
-        let timeoutHandle: NodeJS.Timeout | undefined;
-
-        if (timeout !== undefined && timeout > 0) {
-          timeoutHandle = setTimeout(() => {
-            timedOut = true;
-            if (child.pid) {
-              try {
-                process.kill(-child.pid, "SIGKILL");
-              } catch {
-                child.kill("SIGKILL");
-              }
-            }
-          }, timeout * 1000);
-        }
-
-        child.stdout?.on("data", onData);
-        child.stderr?.on("data", onData);
-
-        child.on("error", (err) => {
-          if (timeoutHandle) clearTimeout(timeoutHandle);
-          reject(err);
-        });
-
-        const onAbort = () => {
-          if (child.pid) {
-            try {
-              process.kill(-child.pid, "SIGKILL");
-            } catch {
-              child.kill("SIGKILL");
-            }
-          }
-        };
-
-        signal?.addEventListener("abort", onAbort, { once: true });
-
-        child.on("close", (code) => {
-          if (timeoutHandle) clearTimeout(timeoutHandle);
-          signal?.removeEventListener("abort", onAbort);
-
-          // Clean up bwrap mount point files created on Linux
-          SandboxManager.cleanupAfterCommand();
-
-          if (signal?.aborted) {
-            reject(new Error("aborted"));
-          } else if (timedOut) {
-            reject(new Error(`timeout:${timeout}`));
-          } else {
-            resolve({ exitCode: code });
-          }
-        });
-      });
-    },
-  };
 }
 
 // ── Extension ─────────────────────────────────────────────────────────────────
@@ -501,6 +432,111 @@ export default function (pi: ExtensionAPI) {
   const sessionAllowedDomains: string[] = [];
   const sessionAllowedReadPaths: string[] = [];
   const sessionAllowedWritePaths: string[] = [];
+
+  // ── Sandboxed bash ops ──────────────────────────────────────────────────────
+
+  function createSandboxedBashOps(shellPath?: string, cwd?: string): BashOperations {
+    return {
+      async exec(command, execCwd, { onData, signal, timeout, env }) {
+        if (!existsSync(execCwd)) {
+          throw new Error(`Working directory does not exist: ${execCwd}`);
+        }
+
+        const { shell, args } = getShellConfig(shellPath);
+
+        // Build the effective sandbox config and pass it explicitly so
+        // wrapWithSandbox picks up the right allowWrite/denyRead rules
+        // even when called from forked (subagent) sessions.
+        const resolveCwd = cwd ?? execCwd;
+        const baseConfig = loadConfig(resolveCwd);
+        const customConfig = {
+          network: {
+            ...baseConfig.network,
+            allowedDomains: [
+              ...(baseConfig.network?.allowedDomains ?? []),
+              ...sessionAllowedDomains,
+            ],
+          },
+          filesystem: {
+            ...baseConfig.filesystem,
+            allowRead: [
+              ...(baseConfig.filesystem?.allowRead ?? []),
+              ...sessionAllowedReadPaths,
+            ],
+            allowWrite: [
+              ...(baseConfig.filesystem?.allowWrite ?? []),
+              ...sessionAllowedWritePaths,
+            ],
+          },
+        };
+
+        const wrappedCommand = await SandboxManager.wrapWithSandbox(
+          command, shell, customConfig,
+        );
+
+        return new Promise((resolve, reject) => {
+          const child = spawn(shell, [...args, wrappedCommand], {
+            cwd: execCwd,
+            env,
+            detached: true,
+            stdio: ["ignore", "pipe", "pipe"],
+          });
+
+          let timedOut = false;
+          let timeoutHandle: NodeJS.Timeout | undefined;
+
+          if (timeout !== undefined && timeout > 0) {
+            timeoutHandle = setTimeout(() => {
+              timedOut = true;
+              if (child.pid) {
+                try {
+                  process.kill(-child.pid, "SIGKILL");
+                } catch {
+                  child.kill("SIGKILL");
+                }
+              }
+            }, timeout * 1000);
+          }
+
+          child.stdout?.on("data", onData);
+          child.stderr?.on("data", onData);
+
+          child.on("error", (err) => {
+            if (timeoutHandle) clearTimeout(timeoutHandle);
+            reject(err);
+          });
+
+          const onAbort = () => {
+            if (child.pid) {
+              try {
+                process.kill(-child.pid, "SIGKILL");
+              } catch {
+                child.kill("SIGKILL");
+              }
+            }
+          };
+
+          signal?.addEventListener("abort", onAbort, { once: true });
+
+          child.on("close", (code) => {
+            if (timeoutHandle) clearTimeout(timeoutHandle);
+            signal?.removeEventListener("abort", onAbort);
+
+            // Clean up bwrap mount point files created on Linux
+            SandboxManager.cleanupAfterCommand();
+
+            if (signal?.aborted) {
+              reject(new Error("aborted"));
+            } else if (timedOut) {
+              reject(new Error(`timeout:${timeout}`));
+            } else {
+              resolve({ exitCode: code });
+            }
+          });
+        });
+      },
+    };
+  }
 
   // ── Helper: update status line ──────────────────────────────────────────────
 
@@ -795,7 +831,7 @@ export default function (pi: ExtensionAPI) {
           return localBash.execute(id, params, signal, onUpdate, ctx);
         }
         const sandboxedBash = createBashToolDefinition(localCwd, {
-          operations: createSandboxedBashOps(userShellPath),
+          operations: createSandboxedBashOps(userShellPath, localCwd),
           shellPath: userShellPath,
         });
         return sandboxedBash.execute(id, params, signal, onUpdate, ctx);
@@ -887,7 +923,7 @@ export default function (pi: ExtensionAPI) {
       }
     }
 
-    return { operations: createSandboxedBashOps(userShellPath) };
+    return { operations: createSandboxedBashOps(userShellPath, localCwd) };
   });
 
   // ── tool_call — network pre-check for bash, path policy for read/write/edit/grep/find/ls
