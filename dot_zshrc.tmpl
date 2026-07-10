@@ -3,32 +3,30 @@
 
 setopt PROMPT_SUBST
 
+# History config — 1 million entries in memory and saved to file
+HISTFILE="${HISTFILE:-$HOME/.zsh_history}"
+HISTSIZE=1000000
+SAVEHISTORY=1000000
+
 case "$TERM" in
     xterm-color|*-256color) color_prompt=yes;;
 esac
 
-# ------------------------ Oh My Zsh Config --------------------------------
-
-# Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
-# Initialization code that may require console input (password prompts, [y/n]
-# confirmations, etc.) must go above this block; everything else may go below.
+# ------------------------ Powerlevel10k Instant Prompt --------------------------------
+# Must stay close to the top of ~/.zshrc — initialization code that may require
+# console input (password prompts, [y/n] confirmations, etc.) must go above this block.
 if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
-# Helper: source a zsh plugin from a mise http: backend install by name.
-# Uses the symlink path directly instead of forking `mise where` on every shell start.
-mise-plugin() {
-  local name="$1" file="${2:-$1.plugin.zsh}"
-  local base="$HOME/.local/share/mise/installs/http-$name"
-  for symlink in latest rel_latest vlatest; do
-    local dir="$base/$symlink"
-    if [[ -d "$dir" && -f "$dir/$file" ]]; then
-      source "$dir/$file"
-      return
-    fi
-  done
-}
+# ------------------------ Modular Config (zshrc.d) --------------------------------
+# Source all .zsh files from ~/.zshrc.d/ in sorted order.
+#  10-mise-plugin.zsh   — mise-plugin() function definition
+#  90-history-backup.zsh — lazy zsh history backups
+for __f in ~/.zshrc.d/*.zsh(N); do source "$__f"; done
+unset __f
+
+# ------------------------ Oh My Zsh + Plugins --------------------------------
 
 export ZSH="$HOME/.local/share/mise/installs/http-oh-my-zsh/latest"
 
@@ -42,7 +40,7 @@ plugins=(git)
 
 source $ZSH/oh-my-zsh.sh
 
-# Source mise-managed zsh plugins
+# Source mise-managed zsh plugins (mise-plugin defined in 10-mise-plugin.zsh)
 mise-plugin zsh-syntax-highlighting
 mise-plugin vi-mode
 mise-plugin zsh-you-should-use
@@ -58,13 +56,6 @@ POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS+=(my_zmx_session)
 
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
-
-# Stop sharing history between terminals.. it's annoying
-# unsetopt SHARE_HISTORY
-
-# Make git alises autocomplete work
-# TODO this broke it
-# setopt complete_aliases
 
 unsetopt correct_all
 
