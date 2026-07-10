@@ -543,9 +543,9 @@ export default function (pi: ExtensionAPI) {
 
   function updateStatus(ctx: ExtensionContext) {
     if (sandboxEnabled) {
-      ctx.ui.setStatus("sandbox", ctx.ui.theme.fg("accent", "🔒"));
+      ctx.ui.setStatus("sandbox", ctx.ui.theme.fg("accent", "\udb80\udf3e"));
     } else {
-      ctx.ui.setStatus("sandbox", ctx.ui.theme.fg("accent", "🔓"));
+      ctx.ui.setStatus("sandbox", ctx.ui.theme.fg("accent", "\udb85\ude71"));
     }
   }
 
