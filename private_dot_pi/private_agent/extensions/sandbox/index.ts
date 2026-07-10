@@ -156,7 +156,8 @@ function loadConfig(cwd: string): SandboxConfig {
   // (e.g., ".", resolved to ~/.local/share/chezmoi), the sandbox runtime's
   // mount ordering puts --ro-bind for allowRead after --bind for allowWrite,
   // causing the ro-bind to shadow the write bind. Skip these entries since
-  // write implies read for child paths anyway.
+  // write implies read for child paths anyway — the tool-level read policy
+  // check falls back to effectiveAllowWrite to enforce this.
   if (config.filesystem?.allowRead && config.filesystem?.allowWrite) {
     config.filesystem.allowRead = normalizeAllowRead(
       config.filesystem.allowRead,
@@ -956,7 +957,11 @@ export default function (pi: ExtensionAPI) {
 
     // Path policy: read/grep/find/ls tools (all read-only filesystem operations).
     //   - If the path is already in effectiveAllowRead, allow silently.
-    //   - Otherwise always prompt, regardless of denyRead.
+    //   - Otherwise fall back to effectiveAllowWrite (write implies read).
+    //     This is important because normalizeAllowRead may have pruned ancestor
+    //     paths (e.g. "~/.local") from allowRead to avoid bwrap mount-ordering
+    //     conflicts when the cwd is a descendant (e.g. "~/.local/share/chezmoi").
+    //   - If neither allowRead nor allowWrite covers the path, prompt.
     //   - Granting (session or permanent) adds to allowRead, which overrides denyRead.
     //   - denyRead is never a hard-block on its own — it just sets the default
     //     denied state that the prompt can override.
@@ -969,8 +974,13 @@ export default function (pi: ExtensionAPI) {
       const path = canonicalizePath(event.input.path ?? event.input.dir ?? event.input.pattern ?? "");
       if (!path) return; // no path to check
       const effectiveAllowRead = getEffectiveAllowRead(ctx.cwd);
+      const effectiveAllowWrite = getEffectiveAllowWrite(ctx.cwd);
 
-      if (!matchesPattern(path, effectiveAllowRead)) {
+      // Check allowRead first, then fall back to allowWrite (write implies read).
+      // normalizeAllowRead may have pruned ancestor read paths that conflict
+      // with bwrap mount ordering — allowWrite fills the gap since those paths
+      // are already writable (and therefore readable) via the child write mount.
+      if (!matchesPattern(path, effectiveAllowRead) && !matchesPattern(path, effectiveAllowWrite)) {
         const choice = await promptReadBlock(ctx, path);
         if (choice === "abort") {
           return {
