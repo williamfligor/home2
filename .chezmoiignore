@@ -11,3 +11,5 @@
 .pi/agent/git/
 .pi/agent/sessions/
 .pi/agent/extensions/*/node_modules
+
+AGENTS.md
