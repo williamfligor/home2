@@ -4,6 +4,8 @@
 
 **/.DS_Store
 
+__pycache__
+
 .pi/**/.pi
 .pi/agent/npm
 .pi/agent/private_auth.json
