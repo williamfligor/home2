@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+#MISE description="Update pi, extensions, and install extension deps"
+set -euxo pipefail
+
+pi update
+pi update --extensions
+bash "$HOME/.local/share/chezmoi/.chezmoiscripts/run_onchange_after_99-pi-extensions.sh"
