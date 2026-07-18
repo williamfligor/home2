@@ -45,9 +45,18 @@
     "welcome": false,
     "mouseScroll": true,
     "layout": {
-      "left": ["model", "thinking", "path", "context_pct", "cost", "git"],
+      "left": [
+        "model",
+        "thinking",
+        "path",
+        "context_pct",
+        "cost",
+        "git"
+      ],
       "right": [],
-      "secondary": ["extension_statuses"]
+      "secondary": [
+        "extension_statuses"
+      ]
     }
   }
 }
