@@ -8,6 +8,7 @@
 
 zmodload zsh/stat 2>/dev/null
 zmodload zsh/datetime 2>/dev/null
+autoload -Uz add-zsh-hook
 
 # Standalone file — ensure add-zsh-hook is available (used after function def)
 autoload -Uz add-zsh-hook
