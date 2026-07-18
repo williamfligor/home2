@@ -37,6 +37,8 @@ alias czra="chezmoi re-add"
 alias czm="chezmoi merge"
 alias czma="chezmoi merge-all"
 alias czet="chezmoi execute-template"
+alias czu="chezmoi update"
+alias czua="chezmoi update --apply"
 
 # ZMX
 alias zs='zmx-ssh'
