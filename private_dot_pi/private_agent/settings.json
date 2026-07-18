@@ -16,8 +16,6 @@
   "packages": [
     "https://github.com/williamfligor/pi-duckfeed.git",
     "npm:@ff-labs/pi-fff",
-    "npm:@juicesharp/rpiv-ask-user-question",
-    "npm:cc-safety-net",
     "npm:pi-markdown-preview",
     "npm:pi-powerline-footer",
     "npm:pi-rewind",
