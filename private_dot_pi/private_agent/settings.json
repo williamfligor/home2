@@ -12,13 +12,14 @@
     "enabled": true,
     "maxRetries": 3
   },
-  "lastChangelogVersion": "0.79.9",
+  "lastChangelogVersion": "1.0.0",
   "packages": [
     "https://github.com/williamfligor/pi-duckfeed.git",
     "npm:@ff-labs/pi-fff",
     "npm:@juicesharp/rpiv-ask-user-question",
     "npm:cc-safety-net",
     "npm:pi-markdown-preview",
+    "npm:pi-powerline-footer",
     "npm:pi-rewind",
     "npm:pi-subagents",
     "npm:pi-vim"
@@ -38,5 +39,15 @@
   "enabledModels": [
     "opencode-go/*",
     "llama-cpp/*"
-  ]
+  ],
+  "powerline": {
+    "preset": "default",
+    "welcome": false,
+    "mouseScroll": true,
+    "layout": {
+      "left": ["model", "thinking", "path", "context_pct", "cost", "git"],
+      "right": [],
+      "secondary": ["extension_statuses"]
+    }
+  }
 }
