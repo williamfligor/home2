@@ -17,14 +17,11 @@
     },
     "filesystem": {
         "denyRead": [],
-        "allowRead": [
-            ".",
-            "~/.cache/uv/"
-        ],
+        "allowRead": [],
         "allowWrite": [
             ".",
             "~/.npm",
-            "~/.cache/uv/",
+            "~/.local/share",
             "/tmp"
         ],
         "denyWrite": [
