@@ -9,6 +9,9 @@
 zmodload zsh/stat 2>/dev/null
 zmodload zsh/datetime 2>/dev/null
 
+# Standalone file — ensure add-zsh-hook is available (used after function def)
+autoload -Uz add-zsh-hook
+
 __zsh_history_backup() {
   local histfile="${HISTFILE:-$HOME/.zsh_history}"
   local backup_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh-history-backups"
