@@ -36,13 +36,17 @@ ENABLE_CORRECTION="true"
 
 zstyle ':omz:update' mode disabled  # disable automatic updates
 
-plugins=(git)
+plugins=(git history-substring-search)
 
 source $ZSH/oh-my-zsh.sh
 
 # Source mise-managed zsh plugins (mise-plugin defined in 10-mise-plugin.zsh)
 mise-plugin zsh-syntax-highlighting
 mise-plugin vi-mode
+# Fix: vi-mode binds ^j (LF/\n) to history-substring-search-down, but ^j IS
+# the newline character. This breaks Orca's startup-command delivery (which
+# sends \n to submit the command). Restore ^j to accept-line so Enter works.
+bindkey -M viins '^j' accept-line
 mise-plugin zsh-you-should-use
 mise-plugin powerlevel10k powerlevel10k.zsh-theme
 
