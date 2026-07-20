@@ -684,7 +684,6 @@ def main() -> None:
         epilog=textwrap.dedent("""\
             Examples:
               oai-req --model gpt-5 --prompt "Hi" | oai-pretty
-              curl -N -s ... | oai-pretty --log ~/logs
               cat response.json | oai-pretty --no-live
         """),
     )
@@ -715,5 +714,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
     main()
