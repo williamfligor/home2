@@ -1,0 +1,1036 @@
+#!/usr/bin/env -S uv run --script
+#
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["rich", "tiktoken", "requests"]
+# ///
+"""
+oai-diag — Multi-model diagnostic grid runner.
+
+Runs a grid of (model × reasoning_effort × prompt_preset) tests via oai-req,
+validates answers, measures latency, and prints a comparison table.
+
+Usage:
+    oai-diag --base https://api.openai.com/v1 \
+             --models gpt-4o-mini,gpt-4o \
+             --efforts off,high
+
+    oai-diag --probe --model gpt-4o-mini --base URL
+
+    oai-diag --list-presets
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import textwrap
+import time
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any
+
+# ---------------------------------------------------------------------------
+# Presets — loaded from oai-req --dump-prompt-presets (single source of truth)
+# ---------------------------------------------------------------------------
+
+PRESETS: dict[str, dict] = {}
+ALL_PRESETS: list[str] = []
+
+
+def _load_presets(oai_req_path: str) -> None:
+    """Load prompt presets from oai-req's JSON dump."""
+    global PRESETS, ALL_PRESETS
+    try:
+        proc = subprocess.run(
+            [oai_req_path, "--dump-prompt-presets"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(proc.stderr.strip())
+        PRESETS = json.loads(proc.stdout)
+        ALL_PRESETS = sorted(PRESETS.keys())
+    except (FileNotFoundError, json.JSONDecodeError, RuntimeError) as e:
+        _die(f"cannot load presets from {oai_req_path}: {e}")
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+
+def _die(msg: str, code: int = 1) -> None:
+    print(f"oai-diag: error: {msg}", file=sys.stderr)
+    sys.exit(code)
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=textwrap.dedent("""\
+            Examples:
+              oai-diag --base https://api.openai.com/v1 --models gpt-5
+              oai-diag --base URL --models modelA modelB --efforts off,high --presets add,hex,crt
+              oai-diag --base URL --models "gpt-4o-mini@reasoning_effort=high" "gpt-4o-mini@reasoning_effort=low"
+              oai-diag --base URL --models "modelA@temperature=0.3" "modelB@temperature=0.3"
+              oai-diag --probe --model gpt-4o-mini --base URL
+        """),
+    )
+
+    # ── Request args ──
+    req = ap.add_argument_group("Request (connection, transport)")
+    req.add_argument("--base",
+                     help="API base URL (required unless --list-presets)")
+    req.add_argument("--api-key",
+                     help="API key (default: check env vars)")
+    req.add_argument(
+        "--api",
+        choices=["responses", "chat"],
+        default="chat",
+        help="URL path (default: chat)",
+    )
+    req.add_argument("--timeout", type=int, default=300,
+                     help="Per-request timeout in seconds (default: 300)")
+    req.add_argument(
+        "--save",
+        metavar="FILE",
+        help="Save results as JSON to FILE",
+    )
+    req.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Pipe each test through oai-pretty for live display",
+    )
+
+    # ── Body args ──
+    body = ap.add_argument_group("Body (test grid, prompt presets, model config)")
+    body.add_argument("--models", nargs="+",
+                      help="Model spec(s). Each can be NAME or NAME@key=val,key=val.\n"
+                           "  --models gpt-4o-mini@reasoning_effort=high model2")
+    body.add_argument("--model-file",
+                      help="Read models from a file (one per line)")
+    body.add_argument(
+        "--efforts",
+        default="off,high",
+        help="Comma-separated reasoning efforts. Only applies to models "
+             "without @extras (default: off,high)",
+    )
+    body.add_argument(
+        "--presets",
+        help="Comma-separated prompt presets (default: all)",
+    )
+    body.add_argument("--max-tokens", type=int, default=16000)
+
+    # ── Utilities ──
+    util = ap.add_argument_group("Utilities")
+    util.add_argument(
+        "--list-presets",
+        action="store_true",
+        help="List available prompt presets and exit",
+    )
+    util.add_argument(
+        "--probe",
+        action="store_true",
+        help="Quick health check instead of full grid",
+    )
+    util.add_argument("--model",
+                      help="Single model identifier (for --probe)")
+
+    args = ap.parse_args()
+
+    # ── List presets ──
+    if args.list_presets:
+        oai_req_path = _find_oai_req()
+        _load_presets(oai_req_path)
+        print("Available prompt presets:\n")
+        for name, pcfg in PRESETS.items():
+            desc = pcfg.get("description", "")
+            exp = pcfg.get("expected")
+            validator = pcfg.get("validator")
+            exp_str = f" → expected: {exp}" if exp else ""
+            val_str = f"  [validate: {validator}]" if validator else "  (free-form)"
+            print(f"  {name:8s}  {desc}{exp_str}")
+            print(f"           {val_str}")
+            print()
+        return
+
+    # ── Validate args ──
+    if not args.base:
+        _die("--base is required")
+
+    # ── Probe mode ──
+    if args.probe:
+        if not args.model:
+            _die("--model is required with --probe")
+        _run_probe(args.base, args.api_key, args.model, args.api,
+                    args.max_tokens, args.timeout)
+        return
+
+    # ── Parse model specs (supports model@key=val,key=val syntax) ──
+    model_specs = _resolve_model_specs(args.models, args.model_file)
+    if not model_specs:
+        _die("provide --models or --model-file")
+
+    efforts = [e.strip() for e in args.efforts.split(",") if e.strip()]
+    presets = (
+        [p.strip() for p in args.presets.split(",") if p.strip()]
+        if args.presets
+        else ALL_PRESETS
+    )
+
+    # ── Build test matrix ──
+    # Model specs with @extras → one test config (no cross-product with efforts)
+    # Model specs without @extras → cross-product with --efforts
+    tests: list[dict] = []
+    n_models = 0
+    n_configs = 0
+    for model_name, spec_extras in model_specs:
+        # Model-specific extras (from @key=val in --models)
+        merged = dict(spec_extras)
+
+        if spec_extras:
+            # Explicit extras → one config per preset, no efforts dimension
+            config_label = _make_config_label(spec_extras)
+            for preset in presets:
+                tests.append({
+                    "model": model_name,
+                    "config_label": config_label,
+                    "extras": dict(merged),
+                    "preset": preset,
+                })
+            n_configs += 1
+        else:
+            # No extras → cross-product with efforts
+            for effort in efforts:
+                config_label = effort
+                effort_extras = dict(merged)
+                if effort != "off":
+                    # Map standard effort names to reasoning_effort
+                    effort_extras["reasoning_effort"] = effort
+                for preset in presets:
+                    tests.append({
+                        "model": model_name,
+                        "config_label": config_label,
+                        "extras": effort_extras,
+                        "preset": preset,
+                    })
+                n_configs += 1
+        n_models += 1
+
+    if not tests:
+        _die("no tests to run (check --models, --efforts, --presets)")
+
+    total = len(tests)
+    # Count unique (model, config_label) pairs for summary
+    unique_configs = len({(t["model"], t["config_label"]) for t in tests})
+    print(f"oai-diag: running {total} tests "
+          f"({unique_configs} model configs × {len(presets)} presets)",
+          file=sys.stderr)
+
+    # ── Run tests ──
+    results: list[TestResult] = []
+    oai_req_path = _find_oai_req()
+    _load_presets(oai_req_path)
+
+    for i, test in enumerate(tests, 1):
+        result = _run_single_test(
+            oai_req_path, test, args, i, total
+        )
+        results.append(result)
+        _print_progress(result, i, total)
+
+    # ── Final table ──
+    _print_comparison_table(results, presets)
+
+    # ── Save ──
+    if args.save:
+        _save_results(results, args.save, args.base)
+
+
+# ---------------------------------------------------------------------------
+# Model spec parsing (supports model@key=val,key=val syntax)
+# ---------------------------------------------------------------------------
+
+
+def _parse_model_spec(spec: str) -> tuple[str, dict]:
+    """Parse ``model@key=val,key=val`` into (model_name, extras_dict).
+
+    Examples:
+        ``gpt-4o-mini@reasoning_effort=high`` →
+            (``gpt-4o-mini``, ``{"reasoning_effort": "high"}``)
+
+        ``gpt-4o-mini`` → (``gpt-4o-mini``, ``{}``)
+    """
+    spec = spec.strip()
+    if "@" not in spec:
+        return spec, {}
+
+    name, rest = spec.split("@", 1)
+    extras: dict = {}
+    for pair in rest.split(","):
+        pair = pair.strip()
+        if "=" not in pair:
+            continue
+        raw_key, val = pair.split("=", 1)
+        # Try JSON parsing for structured values
+        try:
+            parsed_val = json.loads(val)
+        except (json.JSONDecodeError, ValueError):
+            parsed_val = val
+        # Dot-notation key → nested dict
+        parts = raw_key.strip().split(".")
+        target = extras
+        for p in parts[:-1]:
+            if p not in target or not isinstance(target[p], dict):
+                target[p] = {}
+            target = target[p]
+        target[parts[-1]] = parsed_val
+
+    return name.strip(), extras
+
+
+def _make_config_label(extras: dict, max_len: int = 30) -> str:
+    """Short human-readable label from extras dict."""
+    parts = [f"{k}={v}" for k, v in _flatten_dict(extras).items()]
+    label = ",".join(parts) if parts else "default"
+    return label[:max_len] + "…" if len(label) > max_len else label
+
+
+def _flatten_dict(d: dict, prefix: str = "") -> dict:
+    """Flatten a nested dict like ``{"thinking": {"type": "enabled"}}``
+    into ``{"thinking.type": "enabled"}``."""
+    result = {}
+    for k, v in d.items():
+        fq = f"{prefix}.{k}" if prefix else k
+        if isinstance(v, dict):
+            result.update(_flatten_dict(v, fq))
+        else:
+            result[fq] = v
+    return result
+
+
+def _resolve_model_specs(
+    args_list: list[str] | None,
+    file_path: str | None,
+) -> list[tuple[str, dict]]:
+    """Resolve model specs from --models list or --model-file.
+
+    Each spec is:
+        modelname                  → no extras, uses --efforts
+        modelname@key=val,key=val  → explicit extras (one config)
+    """
+    if args_list and file_path:
+        _die("use --models or --model-file, not both")
+
+    specs: list[tuple[str, dict]] = []
+
+    if args_list and args_list != [None]:
+        for arg in args_list:
+            if arg is None:
+                continue
+            arg = arg.strip()
+            if not arg:
+                continue
+            name, extras = _parse_model_spec(arg)
+            specs.append((name, extras))
+
+    elif file_path:
+        try:
+            with open(os.path.expanduser(file_path)) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    name, extras = _parse_model_spec(line)
+                    specs.append((name, extras))
+        except OSError as e:
+            _die(f"cannot read model file {file_path!r}: {e}")
+
+    return specs
+
+
+# ---------------------------------------------------------------------------
+# Find oai-req
+# ---------------------------------------------------------------------------
+
+def _find_oai_req() -> str:
+    """Locate oai-req on PATH, or fall back to ~/.local/bin."""
+    path = shutil.which("oai-req")
+    if path:
+        return path
+    home = os.path.expanduser("~/.local/bin/oai-req")
+    if os.path.isfile(home):
+        return home
+    _die("oai-req not found on PATH or ~/.local/bin/oai-req. "
+         "Install oai-req first.")
+
+
+# ---------------------------------------------------------------------------
+# Data structures
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class TestResult:
+    model: str = ""
+    config_label: str = ""      # short label for the config (effort or extras summary)
+    preset: str = ""
+    success: bool = False       # subprocess returned 0
+    correct: bool | None = None  # answer validation (None = unknown)
+    latency_s: float = 0.0
+    error: str = ""
+    content: str = ""
+    reasoning_text: str = ""
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    reasoning_tokens: int = 0
+    total_tokens: int = 0
+    tik_reasoning_tokens: int = 0
+    tik_completion_tokens: int = 0
+    model_returned: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Single test runner
+# ---------------------------------------------------------------------------
+
+def _run_single_test(
+    oai_req_path: str,
+    test: dict,
+    args: argparse.Namespace,
+    index: int,
+    total: int,
+) -> TestResult:
+    """Run one test via oai-req subprocess and return a TestResult."""
+    result = TestResult(
+        model=test["model"],
+        config_label=test.get("config_label", ""),
+        preset=test["preset"],
+    )
+
+    cmd = [
+        oai_req_path,
+        "--base", args.base,
+        "--prompt-preset", test["preset"],
+        "--api", args.api,
+        "--no-stream",
+        "--timeout", str(args.timeout),
+    ]
+
+    if args.api_key:
+        cmd.extend(["--api-key", args.api_key])
+
+    # Build positional body args (model, max_tokens, extras)
+    pos = [f"model={test['model']}", f"max_tokens={args.max_tokens}"]
+    extras = test.get("extras", {})
+    for k, v in _flatten_dict(extras).items():
+        val_json = json.dumps(v) if not isinstance(v, str) else v
+        pos.append(f"{k}={val_json}")
+
+    cmd.append("--")
+    cmd.extend(pos)
+
+    start = time.monotonic()
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=args.timeout + 30,
+        )
+    except FileNotFoundError:
+        _die(f"oai-req not found at {oai_req_path}")
+    except subprocess.TimeoutExpired:
+        result.latency_s = time.monotonic() - start
+        result.error = "timeout"
+        return result
+    except OSError as e:
+        result.error = str(e)
+        result.latency_s = time.monotonic() - start
+        return result
+
+    result.latency_s = time.monotonic() - start
+
+    if proc.returncode != 0:
+        result.error = proc.stderr.strip() or f"exit code {proc.returncode}"
+        return result
+
+    # Parse JSON response
+    try:
+        response = json.loads(proc.stdout)
+    except json.JSONDecodeError as e:
+        result.error = f"invalid JSON: {e}"
+        return result
+
+    result.success = True
+
+    # Extract model
+    result.model_returned = response.get("model", "")
+
+    # Extract content and reasoning
+    choices = response.get("choices", [])
+    if choices and isinstance(choices, list) and len(choices) > 0:
+        msg = choices[0].get("message", {})
+        result.content = msg.get("content", "")
+        result.reasoning_text = msg.get("reasoning_content", "")
+    else:
+        # Try Responses API format
+        output = response.get("output", [])
+        for item in output:
+            item_type = item.get("type", "")
+            if item_type == "reasoning":
+                rd = item.get("reasoning", {})
+                result.reasoning_text += rd.get("text", "")
+            elif item_type == "message":
+                for cb in item.get("content", []):
+                    if cb.get("type") == "output_text":
+                        result.content += cb.get("text", "")
+
+    # Extract usage
+    usage = response.get("usage", {})
+    if usage:
+        result.prompt_tokens = usage.get("prompt_tokens", 0) or usage.get("input_tokens", 0)
+        result.completion_tokens = usage.get("completion_tokens", 0) or usage.get("output_tokens", 0)
+        result.total_tokens = usage.get("total_tokens", 0)
+
+        details = (
+            usage.get("completion_tokens_details")
+            or usage.get("output_tokens_details")
+            or {}
+        )
+        result.reasoning_tokens = details.get("reasoning_tokens", 0)
+
+    # Tiktoken counts
+    import tiktoken
+    enc_name = _detect_encoding(result.model_returned or result.model)
+    try:
+        enc = tiktoken.get_encoding(enc_name)
+        if result.reasoning_text:
+            result.tik_reasoning_tokens = len(enc.encode(result.reasoning_text))
+        if result.content:
+            result.tik_completion_tokens = len(enc.encode(result.content))
+    except Exception:
+        pass  # tiktoken may not have every encoding
+
+    # Validate answer
+    result.correct = _validate_answer(test["preset"], result.content)
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Tiktoken encoding detection
+# ---------------------------------------------------------------------------
+
+def _detect_encoding(model_name: str) -> str:
+    """Pick a tiktoken encoding name that best matches *model_name*."""
+    if not model_name:
+        return "cl100k_base"
+    name = model_name.lower()
+    if any(k in name for k in ("gpt-4o", "gpt-5", "o1-", "o3-", "o1-mini", "o3-mini")):
+        return "o200k_base"
+    if any(k in name for k in ("gpt-4", "gpt-3.5", "text-embedding")):
+        return "cl100k_base"
+    if any(k in name for k in ("davinci", "codex", "code-")):
+        return "p50k_base"
+    return "cl100k_base"
+
+
+# ---------------------------------------------------------------------------
+# Answer validation
+# ---------------------------------------------------------------------------
+
+def _validate_answer(preset: str, content: str) -> bool | None:
+    """Validate the answer for a known preset.  Returns True/False/None."""
+    cfg = PRESETS.get(preset)
+    if not cfg:
+        return None
+
+    validator = cfg.get("validator")
+    expected = cfg.get("expected")
+
+    if validator == "numeric" and expected is not None:
+        return _validate_numeric(content, expected)
+
+    if validator == "crt":
+        return _validate_crt(content)
+
+    if validator == "date":
+        return _validate_date(content)
+
+    if validator == "count_1_to_10":
+        return _validate_count_1_to_10(content)
+
+    # No validator = free-form answer, don't guess
+    return None
+
+
+def _validate_numeric(content: str, expected: str) -> bool | None:
+    """Extract numbers and check expected appears among them.
+
+    Handles both integers and decimals.  Looks for the expected value
+    in any position (not just first) so that numbers in explanations
+    don't cause false negatives.
+    """
+    # Find all integers and decimals
+    nums = re.findall(r"-?\d+\.?\d*", content.replace(",", ""))
+    if not nums:
+        return False
+    try:
+        # Try int comparison first (for whole numbers like 579)
+        if "." not in expected:
+            exp_int = int(expected)
+            got_ints = {int(n.split(".")[0]) for n in nums}
+            if exp_int in got_ints:
+                return True
+            return False
+        # Float comparison for decimal expected values
+        exp_float = float(expected)
+        got_floats = {float(n) for n in nums}
+        # Check approximate equality (handle floating point)
+        for gf in got_floats:
+            if abs(gf - exp_float) < 0.001:
+                return True
+        return False
+    except (ValueError, TypeError):
+        return False
+
+
+def _validate_crt(content: str) -> bool | None:
+    """Validate the Cognitive Reflection Test (bat & ball).
+
+    Correct answer is 5 cents / $0.05.
+    Intuitive wrong answer is 10 cents / $0.10.
+    """
+    c = content.lower()
+
+    # Direct substring checks for the correct answer
+    has_5_cents = "0.05" in c or "5 cent" in c or "five cent" in c
+    has_10_cents = "0.10" in c or "10 cent" in c or "ten cent" in c
+
+    if has_5_cents and not has_10_cents:
+        return True
+    if has_10_cents and not has_5_cents:
+        return False
+
+    # Fall back to numeric extraction
+    nums = re.findall(r"-?\d+\.?\d*", c)
+    float_nums = []
+    for n in nums:
+        try:
+            float_nums.append(float(n))
+        except ValueError:
+            pass
+
+    # Look for 0.05 or 5 among numbers
+    for fn in float_nums:
+        if abs(fn - 0.05) < 0.001:
+            # Check 0.10 is NOT the final/only answer
+            has_10 = any(abs(f - 0.10) < 0.001 for f in float_nums)
+            if not has_10:
+                return True
+            return False
+        if abs(fn - 5.0) < 0.001 and 0 < fn < 50:
+            # 5 cents could appear as just "5"
+            has_10 = any(abs(f - 0.10) < 0.001 or abs(f - 10.0) < 0.001
+                         for f in float_nums)
+            if not has_10:
+                return True
+            return False
+
+    # Can't determine
+    return None
+
+
+def _validate_date(content: str) -> bool | None:
+    """Validate a day-of-week answer.
+
+    Compares case-insensitively and accepts common abbreviations.
+    Expected format: full day name (e.g., "Friday")
+    """
+    c = content.strip().rstrip(".").lower()
+    expected_days = {
+        "monday": "monday",
+        "tuesday": "tuesday",
+        "wednesday": "wednesday",  # also check "wed" to avoid "wednesday" typos
+        "thursday": "thursday",
+        "friday": "friday",
+        "saturday": "saturday",
+        "sunday": "sunday",
+    }
+
+    # Extract the day name from content
+    found_days = set()
+    for day_word, day_key in expected_days.items():
+        if day_word in c:
+            found_days.add(day_key)
+
+    if not found_days:
+        # Try abbreviations
+        abbrevs = {"mon": "monday", "tue": "tuesday", "wed": "wednesday",
+                    "thu": "thursday", "fri": "friday", "sat": "saturday",
+                    "sun": "sunday"}
+        for abbr, full in abbrevs.items():
+            if abbr in c:
+                found_days.add(full)
+
+    if len(found_days) == 1:
+        correct = list(found_days)[0]
+        return correct == "friday"  # the expected answer for this preset
+    if len(found_days) > 1:
+        # Ambiguous — might contain both correct and discussion of other days
+        pass
+
+    return None  # unsure
+
+
+def _validate_count_1_to_10(content: str) -> bool | None:
+    """Check that numbers 1 through 10 appear in order."""
+    nums = re.findall(r"\d+", content)
+    expected_nums = [str(i) for i in range(1, 11)]
+    it = iter(nums)
+    for en in expected_nums:
+        found = False
+        for n in it:
+            if n == en:
+                found = True
+                break
+        if not found:
+            return False
+    return True
+
+
+# ---------------------------------------------------------------------------
+# Progress output
+# ---------------------------------------------------------------------------
+
+def _print_progress(result: TestResult, index: int, total: int) -> None:
+    """Print a single-line progress entry to stderr."""
+    cfg = f" ({result.config_label})" if result.config_label else ""
+    label = f"[{index}/{total}] {result.model}{cfg} × {result.preset}"
+    lat = f"{result.latency_s:.1f}s"
+
+    if not result.success:
+        err = result.error.replace("\n", " | ")[:60]
+        print(f"  {label:50s}  💥 {lat:6s}  {err}", file=sys.stderr)
+    elif result.correct is True:
+        preview = result.content.strip()[:40]
+        print(f"  {label:50s}  ✓ {lat:6s}  {preview}", file=sys.stderr)
+    elif result.correct is False:
+        preview = result.content.strip()[:40]
+        print(f"  {label:50s}  ✗ {lat:6s}  {preview}", file=sys.stderr)
+    else:
+        preview = result.content.strip()[:40]
+        print(f"  {label:50s}  ? {lat:6s}  {preview}", file=sys.stderr)
+
+
+# ---------------------------------------------------------------------------
+# Comparison table
+# ---------------------------------------------------------------------------
+
+def _print_comparison_table(
+    results: list[TestResult], presets: list[str]
+) -> None:
+    """Print a Rich comparison table to stderr."""
+    from rich.console import Console
+    from rich.table import Table
+    from rich.text import Text
+
+    console = Console(stderr=True, highlight=False)
+
+    # Group results by (model, config_label)
+    rows: dict[tuple[str, str], list[TestResult]] = {}
+    for r in results:
+        key = (r.model, r.config_label)
+        rows.setdefault(key, []).append(r)
+
+    table = Table(
+        title="Diagnostic Results",
+        title_style="bold cyan",
+        show_lines=True,
+        box=None,
+    )
+    table.add_column("Model", style="bold", no_wrap=True)
+    table.add_column("Config", style="yellow", no_wrap=True)
+
+    for p in presets:
+        table.add_column(p, justify="center", width=8)
+
+    table.add_column("Lat", justify="right", style="dim")
+
+    for (model, config_label), row_results in sorted(rows.items()):
+        cells = [model, config_label]
+        total_lat = 0.0
+        count = 0
+        for p in presets:
+            rr = [r for r in row_results if r.preset == p]
+            if not rr:
+                cells.append("—")
+                continue
+            r = rr[0]
+            lat = r.latency_s
+            total_lat += lat
+            count += 1
+
+            if not r.success:
+                cells.append(f"💥 {lat:.1f}")
+            elif r.correct is True:
+                cells.append(f"[green]✓[/green] {lat:.1f}")
+            elif r.correct is False:
+                cells.append(f"[red]✗[/red] {lat:.1f}")
+            else:
+                cells.append(f"[yellow]?[/yellow] {lat:.1f}")
+
+        avg_lat = total_lat / count if count > 0 else 0
+        cells.append(f"{avg_lat:.1f}s")
+
+        table.add_row(*cells)
+
+    console.print()
+    console.print(table)
+    console.print()
+
+
+# ---------------------------------------------------------------------------
+# Save results
+# ---------------------------------------------------------------------------
+
+def _save_results(
+    results: list[TestResult], path: str, base: str
+) -> None:
+    """Save results as JSON."""
+    data = {
+        "meta": {
+            "base": base,
+            "timestamp": datetime.now().isoformat(),
+            "total": len(results),
+        },
+        "results": [
+            {
+                "model": r.model,
+                "config_label": r.config_label,
+                "preset": r.preset,
+                "success": r.success,
+                "correct": r.correct,
+                "latency_s": round(r.latency_s, 3),
+                "error": r.error,
+                "content": r.content,
+                "reasoning_text": r.reasoning_text,
+                "prompt_tokens": r.prompt_tokens,
+                "completion_tokens": r.completion_tokens,
+                "reasoning_tokens": r.reasoning_tokens,
+                "total_tokens": r.total_tokens,
+                "tik_reasoning_tokens": r.tik_reasoning_tokens,
+                "tik_completion_tokens": r.tik_completion_tokens,
+                "model_returned": r.model_returned,
+            }
+            for r in results
+        ],
+    }
+
+    try:
+        path = os.path.expanduser(path)
+        with open(path, "w") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        print(f"oai-diag: results saved to {path}", file=sys.stderr)
+    except OSError as e:
+        print(f"oai-diag: warning: cannot save results: {e}",
+              file=sys.stderr)
+
+
+# ---------------------------------------------------------------------------
+# Probe mode — quick health check
+# ---------------------------------------------------------------------------
+
+def _run_probe(
+    base: str, api_key: str | None, model: str,
+    api: str, max_tokens: int, timeout: int,
+) -> None:
+    """Run a quick health check against a single model."""
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.text import Text
+
+    console = Console(stderr=True)
+    oai_req_path = _find_oai_req()
+    _load_presets(oai_req_path)
+
+    console.print(f"\n[bold cyan]Probing model:[/bold cyan] {model}")
+    console.print(f"[dim]Base:[/dim] {base}")
+
+    results: dict[str, Any] = {
+        "base": base,
+        "model": model,
+        "api": api,
+        "alive": False,
+        "model_returned": "",
+        "latency_s": 0.0,
+        "reasoning_supported": False,
+        "reasoning_tokens": 0,
+        "encoding": _detect_encoding(model),
+    }
+
+    # ── Test 1: No reasoning, trivial prompt ──
+    console.print("\n[bold]Test 1:[/bold] no reasoning, trivial prompt...")
+
+    cmd = [
+        oai_req_path,
+        "--base", base,
+        "--prompt", "Say exactly: OK",
+        "--api", api,
+        "--no-stream",
+        "--timeout", str(min(timeout, 30)),
+        "--", f"model={model}", "max_tokens=10",
+    ]
+    if api_key:
+        cmd.extend(["--api-key", api_key])
+
+    start = time.monotonic()
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True,
+                               timeout=30)
+    except subprocess.TimeoutExpired:
+        console.print("  [red]✗ timeout after 30s[/red]")
+        _print_probe_summary(results)
+        return
+    except OSError as e:
+        console.print(f"  [red]✗ {e}[/red]")
+        _print_probe_summary(results)
+        return
+
+    t1 = time.monotonic() - start
+
+    if proc.returncode != 0:
+        console.print(f"  [red]✗ error: {proc.stderr.strip()}[/red]")
+        _print_probe_summary(results)
+        return
+
+    try:
+        resp = json.loads(proc.stdout)
+    except json.JSONDecodeError as e:
+        console.print(f"  [red]✗ invalid JSON: {e}[/red]")
+        _print_probe_summary(results)
+        return
+
+    model_returned = resp.get("model", "(unknown)")
+    usage = resp.get("usage", {})
+    choices = resp.get("choices", [])
+    content = ""
+    if choices:
+        content = choices[0].get("message", {}).get("content", "")
+
+    results["alive"] = True
+    results["model_returned"] = model_returned
+    results["latency_s"] = round(t1, 3)
+
+    console.print(f"  [green]✓[/green] {t1:.1f}s  model={model_returned}")
+    console.print(f"  content: {content.strip()[:60]}")
+
+    # ── Test 2: With reasoning ──
+    console.print("\n[bold]Test 2:[/bold] with reasoning effort=high...")
+
+    cmd2 = [
+        oai_req_path,
+        "--base", base,
+        "--prompt", "What is 2+2? Answer with just the number.",
+        "--api", api,
+        "--no-stream",
+        "--timeout", str(min(timeout, 60)),
+        "--", f"model={model}", "max_tokens=200", "reasoning_effort=high",
+    ]
+    if api_key:
+        cmd2.extend(["--api-key", api_key])
+
+    try:
+        proc2 = subprocess.run(cmd2, capture_output=True, text=True,
+                                timeout=60)
+    except subprocess.TimeoutExpired:
+        console.print("  [yellow]? timeout after 60s (reasoning may be slow)[/yellow]")
+        _print_probe_summary(results)
+        return
+    except OSError as e:
+        console.print(f"  [red]✗ {e}[/red]")
+        _print_probe_summary(results)
+        return
+
+    t2 = time.monotonic() - start - t1
+
+    if proc2.returncode == 0:
+        try:
+            resp2 = json.loads(proc2.stdout)
+            choices2 = resp2.get("choices", [])
+            if choices2:
+                msg2 = choices2[0].get("message", {})
+                rc = msg2.get("reasoning_content", "")
+                content2 = msg2.get("content", "")
+                usage2 = resp2.get("usage", {})
+                details = (
+                    usage2.get("completion_tokens_details")
+                    or usage2.get("output_tokens_details")
+                    or {}
+                )
+                rt = details.get("reasoning_tokens", 0) or 0
+
+                if rc or rt > 0:
+                    results["reasoning_supported"] = True
+                    results["reasoning_tokens"] = rt
+                    console.print(
+                        f"  [green]✓[/green] {t2:.1f}s  "
+                        f"reasoning tokens: {rt}"
+                    )
+                    rc_preview = rc.strip()[:80]
+                    if rc_preview:
+                        console.print(f"  reasoning: {rc_preview}…")
+                else:
+                    console.print(
+                        f"  [yellow]?[/yellow] {t2:.1f}s  "
+                        f"no reasoning_content (try thinking.type=enabled "
+                        f"for providers that pass extras via extra_body)"
+                    )
+            else:
+                console.print("  [yellow]? no choices in response[/yellow]")
+        except json.JSONDecodeError:
+            console.print("  [yellow]? invalid JSON[/yellow]")
+    else:
+        console.print(
+            f"  [yellow]? error: {proc2.stderr.strip()[:80]}[/yellow]"
+        )
+
+    _print_probe_summary(results)
+
+
+def _print_probe_summary(results: dict) -> None:
+    """Print probe results in a compact panel."""
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.text import Text
+
+    console = Console(stderr=True)
+
+    lines = [
+        f"Base:        {results['base']}",
+        f"Model:       {results['model']}",
+        f"Returned:    {results.get('model_returned', '—')}",
+        f"Alive:       {'✓' if results['alive'] else '✗'}",
+        f"Latency:     {results.get('latency_s', '—')}s",
+        f"Reasoning:   "
+        f"{'✓' if results.get('reasoning_supported') else '—'}",
+        f"Enc:         {results.get('encoding', '?')}",
+    ]
+    text = Text("\n".join(lines))
+    panel = Panel(text, title="Probe Results", border_style="cyan")
+    console.print()
+    console.print(panel)
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    main()

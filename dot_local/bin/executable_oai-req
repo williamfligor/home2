@@ -1,0 +1,633 @@
+#!/usr/bin/env -S uv run --script
+#
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["requests"]
+# ///
+"""
+oai-req — Make requests to OpenAI-compatible API endpoints.
+
+Streams raw HTTP response to stdout for piping into oai-pretty or other tools.
+Can also print the equivalent curl command for reproducibility.
+
+Usage:
+    oai-req --base https://api.openai.com/v1 --prompt "Hello" -- model=gpt-5 | oai-pretty
+    oai-req --base https://api.openai.com/v1 --prompt "..." -- model=gpt-5 reasoning_effort=high | oai-pretty
+    oai-req --base https://api.openai.com/v1 --prompt "Hi" -- model=gpt-5 --curl
+    oai-req --base https://api.openai.com/v1 --prompt "Hi" -- model=gpt-5 reasoning_effort=high --dry-run
+
+Environment variables (checked in order):
+    OPENAI_API_KEY
+    OPENROUTER_API_KEY
+    OPENCODE_API_KEY
+    API_KEY
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import textwrap
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+_COMMON_KEY_ENV_VARS = [
+    "OPENAI_API_KEY",
+    "OPENROUTER_API_KEY",
+    "OPENCODE_API_KEY",
+    "API_KEY",
+]
+
+
+def _die(msg: str, code: int = 1) -> None:
+    print(f"oai-req: error: {msg}", file=sys.stderr)
+    sys.exit(code)
+
+
+def _resolve_key(explicit: str | None,
+                 required: bool = True) -> str | None:
+    """Resolve API key: explicit flag > common env vars > placeholder."""
+    if explicit:
+        return explicit
+    for var in _COMMON_KEY_ENV_VARS:
+        val = os.environ.get(var)
+        if val:
+            return val
+    if required:
+        _die(
+            "API key not found. Set --api-key or one of: "
+            + ", ".join(_COMMON_KEY_ENV_VARS)
+        )
+    return "$API_KEY"  # placeholder for --curl / --dry-run
+
+
+# ---------------------------------------------------------------------------
+# Prompt presets
+# ---------------------------------------------------------------------------
+
+PRESETS: dict[str, dict] = {
+    "hex": {
+        "prompt": (
+            "Solve: ((0xe293 * 0xcd5d) + (0xd7b7 + 0x2442))\n"
+            "Print ONLY the final decimal integer as your answer. "
+            "No explanation, no steps, no working — just the number."
+        ),
+        "description": "Complex hex arithmetic",
+        "expected": "3049456224",
+        "validator": "numeric",
+    },
+    "path": {
+        "prompt": (
+            "Find the shortest path from `*` to `H` in the grid below.\n"
+            "Print ONLY the sequence of directions (Up/Down/Left/Right) "
+            "as your answer. No explanation, no steps, no working — "
+            "just the path.\n"
+            "```\n"
+            "X X O O O O *\n"
+            "X O X X O X O\n"
+            "X H X O O O O\n"
+            "X O O X O O X\n"
+            "O O O O O O X\n"
+            "```\n"
+            "`X` = wall, `O` = open, `H` = destination."
+        ),
+        "description": "Pathfinding on a 5×7 grid with walls",
+        "expected": None,
+        "validator": None,
+    },
+    "add": {
+        "prompt": "123 + 456 = ?\nPrint ONLY the final decimal integer as your answer.",
+        "description": "Simple two-number addition",
+        "expected": "579",
+        "validator": "numeric",
+    },
+    "mult": {
+        "prompt": "1234 * 5678 = ?\nPrint ONLY the final decimal integer as your answer.",
+        "description": "Multi-digit multiplication",
+        "expected": "7006652",
+        "validator": "numeric",
+    },
+    "chain": {
+        "prompt": (
+            "There are three boxes: one contains only apples, "
+            "one contains only oranges, and one contains both. "
+            "All labels are wrong. You pick a fruit from the box "
+            "labeled 'Apples'. It's an orange. "
+            "What is in each box? Explain your reasoning."
+        ),
+        "description": "Classic logic puzzle (mislabeled boxes)",
+        "expected": None,
+        "validator": None,
+    },
+    "count": {
+        "prompt": "List the numbers 1 through 10, one per line.",
+        "description": "Simple counting task",
+        "expected": None,
+        "validator": "count_1_to_10",
+    },
+    "socks": {
+        "prompt": (
+            "A robot steps into a room full of unsorted socks. "
+            "It picks up a red sock, then a blue sock, then a green sock. "
+            "It pauses, looks at the socks in its gripper, and says: "
+            "'These don't match.' The room goes silent. "
+            "What does the robot say next, and why?"
+        ),
+        "description": "Robot socks story (oai-bench default prompt)",
+        "expected": None,
+        "validator": None,
+    },
+
+    # ── New reasoning-level presets ──
+
+    "arith": {
+        "prompt": (
+            "Compute: (((145 * 27) + (382 * 64)) - (217 * 53))\n"
+            "Print ONLY the final decimal integer as your answer. "
+            "No explanation, no steps, no working — just the number."
+        ),
+        "description": "Multi-step arithmetic (reasoning ladder)",
+        "expected": "16862",
+        "validator": "numeric",
+    },
+    "crt": {
+        "prompt": (
+            "A bat and a ball cost $1.10 in total. "
+            "The bat costs $1.00 more than the ball. "
+            "How much does the ball cost?\n"
+            "Print ONLY the final numeric answer (e.g., 0.05 or 5 cents)."
+        ),
+        "description": "Cognitive reflection (bat & ball)",
+        "expected": "0.05",
+        "validator": "crt",
+    },
+    "strawberry": {
+        "prompt": (
+            "How many r's are in the word 'strawberry'?\n"
+            "Print ONLY the final integer as your answer."
+        ),
+        "description": "Simple letter counting (surprisingly tricky)",
+        "expected": "3",
+        "validator": "numeric",
+    },
+    "weighing": {
+        "prompt": (
+            "You have 8 identical-looking coins. "
+            "One is counterfeit and lighter than the others. "
+            "You have a balance scale. "
+            "What is the minimum number of weighings needed to "
+            "guarantee finding the counterfeit coin?\n"
+            "Print ONLY the final integer as your answer."
+        ),
+        "description": "Information-theoretic weighing puzzle",
+        "expected": "2",
+        "validator": "numeric",
+    },
+    "date": {
+        "prompt": (
+            "If January 1, 2024 was a Monday, "
+            "what day of the week was April 5, 2024?\n"
+            "Print ONLY the day name (e.g., Monday)."
+        ),
+        "description": "Calendar arithmetic with leap year",
+        "expected": "Friday",
+        "validator": "date",
+    },
+    "river": {
+        "prompt": (
+            "A farmer needs to cross a river with a wolf, a goat, "
+            "and a cabbage. The boat can only carry the farmer and "
+            "one item at a time. If left unattended, the wolf eats "
+            "the goat and the goat eats the cabbage. How can the "
+            "farmer get everything across safely?\n"
+            "Describe the step-by-step solution."
+        ),
+        "description": "Classic river crossing constraint puzzle",
+        "expected": None,
+        "validator": None,
+    },
+}
+
+
+def _resolve_text(
+    inline: str | None, path: str | None, label: str
+) -> str | None:
+    """Get text from --{label} or --{label}-file, or return None."""
+    if inline and path:
+        _die(f"use --{label} or --{label}-file, not both")
+    if path:
+        try:
+            with open(os.path.expanduser(path)) as f:
+                return f.read()
+        except OSError as e:
+            _die(f"cannot read {label} file {path!r}: {e}")
+    return inline
+
+
+def _mask_key(key: str) -> str:
+    """Show only the first 8 and last 4 chars of an API key."""
+    if len(key) > 16:
+        return key[:8] + "..." + key[-4:]
+    return key[:8] + "..." if len(key) > 8 else "***"
+
+
+# ---------------------------------------------------------------------------
+# Request building
+# ---------------------------------------------------------------------------
+
+def _build_body(args: argparse.Namespace, prompt: str | None,
+                 system: str | None) -> dict:
+    """Build the JSON request body for the selected API."""
+    if args.api == "responses":
+        input_msgs = []
+        if system:
+            input_msgs.append({"role": "system", "content": system})
+        if prompt:
+            input_msgs.append({"role": "user", "content": prompt})
+        body: dict = {
+            "input": input_msgs,
+            "stream": not args.no_stream,
+        }
+    else:  # chat
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        if prompt:
+            messages.append({"role": "user", "content": prompt})
+        body = {
+            "messages": messages,
+            "stream": not args.no_stream,
+        }
+        if not args.no_stream:
+            body["stream_options"] = {"include_usage": True}
+
+    # Merge positional body args (after --) onto the body
+    _merge_kv_list(body, getattr(args, "body_args", []) or [])
+
+    return body
+
+
+def _merge_kv_list(body: dict, items: list[str]) -> None:
+    """Parse key=value strings and merge into *body* using dot notation.
+
+    Each item in *items* can be a single ``key=val`` or compound
+    ``key1=val1;key2=val2`` separated by semicolons.
+    """
+    for item in items:
+        # Support compound pairs separated by semicolons
+        for pair in item.split(";"):
+            pair = pair.strip()
+            if not pair:
+                continue
+            try:
+                raw_key, val = pair.split("=", 1)
+            except ValueError:
+                _die(f"invalid key=value: {pair!r} (expected key=value)")
+            # Try JSON parsing for structured values, fall back to string
+            try:
+                parsed = json.loads(val)
+            except (json.JSONDecodeError, ValueError):
+                parsed = val
+            # Walk the dot-path to set nested keys
+            parts = raw_key.split(".")
+            target = body
+            for p in parts[:-1]:
+                if p not in target or not isinstance(target[p], dict):
+                    target[p] = {}
+                target = target[p]
+            target[parts[-1]] = parsed
+
+
+# ---------------------------------------------------------------------------
+# Output modes
+# ---------------------------------------------------------------------------
+
+def _print_dry_run(url: str, headers: dict, body: dict) -> None:
+    """Print what would be sent."""
+    masked = dict(headers)
+    auth = masked.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        masked["Authorization"] = f"Bearer {_mask_key(auth[7:])}"
+
+    print(f"URL: POST {url}", file=sys.stderr)
+    print("Headers:", file=sys.stderr)
+    for k, v in masked.items():
+        print(f"  {k}: {v}", file=sys.stderr)
+    print("Body:", file=sys.stderr)
+    print(json.dumps(body, indent=2), file=sys.stderr)
+
+
+def _print_curl(url: str, headers: dict, body: dict,
+                 api_key: str,
+                 include_key: bool = False) -> None:
+    """Print the equivalent curl command to stdout.
+
+    The body is pretty-printed and wrapped in single quotes (bash
+    single-quoted strings span multiple lines naturally).  By default
+    the API key is referenced via a placeholder; pass *include_key*
+    to embed the literal value.
+    """
+    lines = [
+        "curl -N -s -X POST " + shlex_quote(url) + " \\"
+    ]
+    for k, v in headers.items():
+        if k.lower() == "authorization":
+            if include_key:
+                v = f"Bearer {api_key}"
+            elif api_key.startswith("$"):
+                v = f"Bearer {api_key}"
+            else:
+                v = "Bearer <API-KEY>"
+        lines.append(f"  -H {shlex_quote(f'{k}: {v}')} \\")
+    # Pretty-printed JSON body in single quotes (multiline in bash)
+    body_json = json.dumps(body, ensure_ascii=False, indent=2)
+    escaped_body = body_json.replace("'", "'\\''")
+    lines.append(f"  -d '{escaped_body}'")
+    print("\n".join(lines))
+
+
+def shlex_quote(s: str) -> str:
+    """Simple bash quoting using single quotes with proper escaping."""
+    escaped = s.replace("'", "'\\''")
+    return f"'{escaped}'"
+
+
+# ---------------------------------------------------------------------------
+# HTTP execution
+# ---------------------------------------------------------------------------
+
+def _execute_request(url: str, headers: dict, body: dict,
+                      no_stream: bool, save_response: str | None,
+                      timeout: int = 300) -> None:
+    """Make the HTTP request and stream the response to stdout.
+
+    Retries on HTTP 429 (rate limited) with exponential backoff.
+    """
+    import requests
+    import time
+
+    stream = not no_stream
+    max_retries = 5
+    base_delay = 1.0
+
+    for attempt in range(max_retries + 1):
+        try:
+            resp = requests.post(
+                url,
+                headers=headers,
+                json=body,
+                stream=stream,
+                timeout=timeout,
+            )
+        except requests.exceptions.ConnectionError as e:
+            if attempt < max_retries:
+                delay = base_delay * (2 ** attempt)
+                print(f"oai-req: connection failed, retrying in {delay:.0f}s... "
+                      f"({attempt + 1}/{max_retries})",
+                      file=sys.stderr)
+                time.sleep(delay)
+                continue
+            _die(f"connection failed after {max_retries} retries: {e}")
+        except requests.exceptions.Timeout:
+            _die("request timed out")
+
+        if resp.status_code == 429 and attempt < max_retries:
+            # Rate limited — use Retry-After header or exponential backoff
+            retry_after = resp.headers.get("Retry-After")
+            try:
+                delay = float(retry_after)
+            except (TypeError, ValueError):
+                delay = base_delay * (2 ** attempt)
+            print(f"oai-req: rate limited (429), retrying in {delay:.0f}s... "
+                  f"({attempt + 1}/{max_retries})",
+                  file=sys.stderr)
+            time.sleep(delay)
+            continue
+
+        if not resp.ok:
+            try:
+                detail = resp.json()
+            except Exception:
+                detail = resp.text[:500]
+            _die(f"HTTP {resp.status_code}: {detail}")
+
+        # Success — proceed to streaming
+        break
+
+    out_file = None
+    if save_response:
+        try:
+            out_file = open(os.path.expanduser(save_response), "wb")
+        except OSError as e:
+            _die(f"cannot write --save-response {save_response!r}: {e}")
+
+    if no_stream:
+        data = resp.content
+        sys.stdout.buffer.write(data)
+        sys.stdout.buffer.flush()
+        if out_file:
+            out_file.write(data)
+    else:
+        for chunk in resp.iter_content(chunk_size=65536):
+            if chunk:
+                sys.stdout.buffer.write(chunk)
+                sys.stdout.buffer.flush()
+                if out_file:
+                    out_file.write(chunk)
+
+    if out_file:
+        out_file.close()
+
+
+# ---------------------------------------------------------------------------
+# MAIN
+# ---------------------------------------------------------------------------
+
+def main() -> None:
+    ap = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=textwrap.dedent("""\
+            Examples:
+              oai-req --base https://api.openai.com/v1 --prompt "Hello" -- model=gpt-5 | oai-pretty
+              oai-req --base https://api.openai.com/v1 --prompt "Hi" -- model=gpt-5 --curl
+              oai-req --base https://api.openai.com/v1 --prompt "Hi" -- model=gpt-5 reasoning_effort=high --dry-run
+        """),
+    )
+
+    # ── Request args (transport, auth, output mode) ──
+    req = ap.add_argument_group("Request (transport, auth, output)")
+    req.add_argument("--base",
+                     help="API base URL (e.g. https://api.openai.com/v1)")
+    req.add_argument("--api-key",
+                     help="API key (default: check OPENAI_API_KEY, "
+                          "OPENROUTER_API_KEY, OPENCODE_API_KEY, API_KEY)")
+    req.add_argument(
+        "--api",
+        choices=["responses", "chat"],
+        default="chat",
+        help="URL path (default: chat — compatible with all providers)",
+    )
+    req.add_argument(
+        "--timeout",
+        type=int,
+        default=300,
+        help="Request timeout in seconds (default: 300)",
+    )
+    req.add_argument(
+        "--no-stream",
+        action="store_true",
+        dest="no_stream",
+        help="Disable streaming (collect full response before output)",
+    )
+    req.add_argument(
+        "--save-response",
+        help="Save raw response to FILE (in addition to stdout)",
+        metavar="FILE",
+    )
+    req.add_argument(
+        "--curl",
+        action="store_true",
+        help="Print equivalent curl command instead of executing",
+    )
+    req.add_argument(
+        "--curl-include-api-key",
+        action="store_true",
+        dest="curl_include_key",
+        help="Include the literal API key in the curl command "
+             "(default: use env var placeholder)",
+    )
+    req.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print request details without sending",
+    )
+
+    # ── Body args (fields with structural side effects) ──
+    body = ap.add_argument_group("Body (prompt/content)")
+    body.add_argument("--prompt", help="User prompt (inline)")
+    body.add_argument("--prompt-file",
+                      help="Read user prompt from a file")
+    body.add_argument("--prompt-preset",
+                      choices=list(PRESETS),
+                      help="Use a named prompt preset (see --list-prompt-presets)")
+    body.add_argument("--system", help="System prompt (inline)")
+    body.add_argument("--system-file",
+                      help="Read system prompt from a file")
+
+    # ── Positional body args (everything after --) ──
+    ap.add_argument(
+        "body_args", nargs="*",
+        help="Body key=value pairs after -- separator.\n"
+             "  oai-req --base URL --prompt 'Hi' --\n"
+             "      model=gpt-4o-mini temperature=0.3\n"
+             "      max_tokens=8000\n"
+             "\n"
+             "Values are JSON-parsed: true → boolean, 3 → number, 'enabled' → string.\n"
+             "Dot notation nests: thinking.type=enabled → {thinking: {type: enabled}}\n"
+             "Compound with ; : reasoning_effort=high;temperature=0.3\n"
+             "Key=value pairs after -- are merged into the request body.",
+    )
+
+    # ── Utilities ──
+    util = ap.add_argument_group("Utilities")
+    util.add_argument(
+        "--list-prompt-presets",
+        action="store_true",
+        help="List available prompt presets and exit",
+    )
+    util.add_argument(
+        "--dump-prompt-presets",
+        action="store_true",
+        help="Dump all prompt presets as JSON (for oai-diag consumption)",
+    )
+
+    args = ap.parse_args()
+
+    # Utility flags that don't need --base
+    if args.dump_prompt_presets or args.list_prompt_presets:
+        if args.dump_prompt_presets:
+            json.dump(PRESETS, sys.stdout, indent=2, ensure_ascii=False)
+            print()
+        else:
+            print("Available prompt presets:\n")
+            for name, pcfg in PRESETS.items():
+                desc = pcfg.get("description", "")
+                preview = pcfg["prompt"][:80].replace("\n", " ")
+                if len(pcfg["prompt"]) > 80:
+                    preview += "…"
+                expected = pcfg.get("expected")
+                validator = pcfg.get("validator")
+                exp_str = f" → expected: {expected}" if expected else ""
+                val_str = f"  [validate: {validator}]" if validator else "  (free-form)"
+                print(f"  {name:8s}  {desc}{exp_str}")
+                print(f"           {preview}")
+                print(f"           {val_str}")
+                print()
+        return
+
+    if not args.base:
+        _die("--base is required")
+
+    # ── Resolve prompt (flag or preset) ──
+    prompt = None
+    preset_used = None
+
+    if args.prompt_preset:
+        preset = PRESETS[args.prompt_preset]
+        preset_used = args.prompt_preset
+        prompt = preset["prompt"]
+    if args.prompt or args.prompt_file:
+        prompt = _resolve_text(args.prompt, args.prompt_file, "prompt")
+
+    if not prompt:
+        if preset_used:
+            _die(f"preset {preset_used!r} has no prompt definition")
+        _die("provide --prompt, --prompt-file, or --prompt-preset")
+
+    # ── System ──
+    system = _resolve_text(args.system, args.system_file, "system")
+
+    if preset_used:
+        print(f"oai-req: using preset {preset_used!r}", file=sys.stderr)
+
+    # Build request
+    base = args.base.rstrip("/")
+    url = (
+        f"{base}/{args.api}/completions"
+        if args.api == "chat"
+        else f"{base}/responses"
+    )
+    body = _build_body(args, prompt, system)
+
+    if not body.get("model"):
+        _die("model=... is required after -- (e.g. -- model=gpt-4o-mini)")
+
+    # Resolve key (only required for actual execution)
+    if args.curl or args.dry_run:
+        api_key = _resolve_key(args.api_key, required=False)
+    else:
+        api_key = _resolve_key(args.api_key, required=True)
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    # Dispatch
+    if args.dry_run:
+        _print_dry_run(url, headers, body)
+    elif args.curl:
+        _print_curl(url, headers, body, api_key,
+                     include_key=args.curl_include_key)
+    else:
+        _execute_request(url, headers, body, args.no_stream,
+                          args.save_response, timeout=args.timeout)
+
+
+if __name__ == "__main__":
+    main()

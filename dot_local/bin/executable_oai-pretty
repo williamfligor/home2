@@ -1,0 +1,719 @@
+#!/usr/bin/env -S uv run --script
+#
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["rich", "tiktoken"]
+# ///
+"""
+oai-pretty — Pretty-print streaming SSE or JSON from OpenAI-compatible APIs.
+
+Reads raw HTTP response body from stdin (streaming SSE or single JSON),
+auto-detects the API format (Responses API or Chat Completions),
+and renders a live scrolling display with the last N lines of reasoning,
+the accumulated answer, and token counts.
+
+Usage:
+    oai-req --model gpt-5 --base https://api.openai.com/v1 --prompt "Hello" | oai-pretty
+    curl -N -s ... | oai-pretty
+    cat response.json | oai-pretty
+    oai-pretty < response.txt
+
+    oai-pretty --no-live
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import time
+import textwrap
+from dataclasses import dataclass, field
+from typing import Iterator
+
+# ---------------------------------------------------------------------------
+# Event types — parsed units from the raw stream
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class Metadata:
+    api_type: str = "?"         # "responses" | "chat" | "json-responses" | "json-chat"
+    model: str = "?"
+
+
+@dataclass
+class ReasoningChunk:
+    text: str
+
+
+@dataclass
+class ContentChunk:
+    text: str
+
+
+@dataclass
+class UsageInfo:
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    reasoning_tokens: int = 0
+    total_tokens: int = 0
+
+
+@dataclass
+class StreamFinished:
+    finish_reason: str = ""
+    _source: str = ""  # debug: identifies which code path yielded this
+
+
+SSEEvent = Metadata | ReasoningChunk | ContentChunk | UsageInfo | StreamFinished
+
+
+# ---------------------------------------------------------------------------
+# SSE / JSON parser
+# ---------------------------------------------------------------------------
+
+def _die(msg: str, code: int = 1) -> None:
+    print(f"oai-pretty: error: {msg}", file=sys.stderr)
+    sys.exit(code)
+
+
+def parse_events() -> Iterator[SSEEvent]:
+    """Read stdin and yield parsed SSE events.
+
+    Auto-detects streaming SSE vs non-streaming JSON and the API type.
+    """
+    first_line = sys.stdin.buffer.readline()
+    if not first_line:
+        _die("no input received (stdin is empty). "
+             "Pipe a response from curl or oai-req.")
+
+    stripped = first_line.strip()
+
+    if stripped.startswith(b"data:"):
+        # ── Streaming SSE mode ──
+        yield from _parse_sse(first_line, sys.stdin.buffer)
+    elif stripped.startswith(b"{"):
+        # ── Non-streaming JSON mode ──
+        rest = sys.stdin.buffer.read()
+        full = stripped + b"\n" + rest if rest else stripped
+        yield from _parse_nonstreaming_json(full)
+    else:
+        # Line doesn't look like SSE or JSON — might be stderr bleed
+        # from a tool merged via 2>&1.  Skip and try the next line.
+        for line in sys.stdin.buffer:
+            s = line.strip()
+            if not s:
+                continue
+            if s.startswith(b"data:"):
+                yield from _parse_sse(s, sys.stdin.buffer)
+                return
+            if s.startswith(b"{"):
+                rest = sys.stdin.buffer.read()
+                full = s + b"\n" + rest if rest else s
+                yield from _parse_nonstreaming_json(full)
+                return
+        # Ran out of lines without finding anything parseable
+        _die("no valid SSE or JSON found in input. "
+             "Is the pipe clean? Avoid 2>&1 when piping to oai-pretty.")
+
+
+# ---------------------------------------------------------------------------
+# SSE streaming parser
+# ---------------------------------------------------------------------------
+
+def _parse_sse(first_line: bytes,
+               buffer) -> Iterator[SSEEvent]:
+    """Parse SSE events line-by-line from a buffered stream.
+
+    Chat Metadata (model name) repeats in every chunk.  The _dedup helper
+    yields it only once per stream; subsequent occurrences are dropped.
+    """
+    _chat_metadata_sent = False
+
+    def _dedup(events: Iterator[SSEEvent]) -> Iterator[SSEEvent]:
+        nonlocal _chat_metadata_sent
+        for event in events:
+            if isinstance(event, Metadata) and event.api_type == "chat":
+                if _chat_metadata_sent:
+                    continue
+                _chat_metadata_sent = True
+            yield event
+
+    # Process the first line we already read
+    yield from _dedup(_handle_sse_line(first_line))
+
+    for line in buffer:
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith(b"event:"):
+            # Some providers send event: lines — skip, type is in data:
+            continue
+        if line.startswith(b"data:"):
+            yield from _dedup(_handle_sse_line(line))
+
+
+def _handle_sse_line(line: bytes) -> Iterator[SSEEvent]:
+    """Parse a single ``data: ...`` SSE line and yield events."""
+    content = line[5:].strip()
+    if not content:
+        return
+    if content == b"[DONE]":
+        # End of SSE stream — the real StreamFinished was already yielded
+        # from the preceding data: line with finish_reason / completed.
+        return
+
+    try:
+        payload = json.loads(content)
+    except json.JSONDecodeError:
+        # Not valid JSON — treat as reasoning text (some providers do this)
+        text = content.decode("utf-8", errors="replace")
+        yield ReasoningChunk(text=text)
+        return
+
+    payload_type = payload.get("type", "")
+    payload_obj = payload.get("object", "")
+
+    # ── Responses API events ──
+    if payload_type.startswith("response.") or payload_obj == "response":
+        yield from _parse_responses_event(payload)
+    # ── Chat Completions events ──
+    elif payload_obj == "chat.completion.chunk":
+        yield from _parse_chat_event(payload)
+    elif payload_obj == "chat.completion":
+        # Non-streaming chat completion wrapped in a data: line (unlikely)
+        yield from _parse_chat_nonstreaming(payload)
+    else:
+        # Unknown event type — skip silently.
+        # Providers may send metadata events (e.g. opencode inference-cost)
+        # that aren't standard Response or Chat events.
+        pass
+
+
+# ---------------------------------------------------------------------------
+# Responses API event parsing
+# ---------------------------------------------------------------------------
+
+def _parse_responses_event(payload: dict) -> Iterator[SSEEvent]:
+    event_type = payload.get("type", "")
+
+    # Metadata: extract model from created/in_progress
+    if event_type in ("response.created", "response.in_progress"):
+        resp = payload.get("response") or payload
+        model = resp.get("model", "")
+        yield Metadata(api_type="responses", model=model)
+
+    # Reasoning deltas
+    if event_type in ("response.reasoning.delta",
+                       "response.reasoning_text.delta"):
+        delta = payload.get("delta", "")
+        if delta:
+            yield ReasoningChunk(text=delta)
+
+    # Answer content
+    if event_type == "response.output_text.delta":
+        delta = payload.get("delta", "")
+        if delta:
+            yield ContentChunk(text=delta)
+
+    # Completion / usage
+    if event_type == "response.completed":
+        resp = payload.get("response") or {}
+        usage = resp.get("usage") or {}
+        yield _extract_usage(usage)
+        yield StreamFinished(
+            finish_reason=resp.get("status", "")
+        )
+
+    # Error
+    if event_type == "error":
+        err = payload.get("error", {})
+        msg = err.get("message", str(payload))
+        print(f"\noai-pretty: API error: {msg}", file=sys.stderr)
+
+
+# ---------------------------------------------------------------------------
+# Chat Completions event parsing
+# ---------------------------------------------------------------------------
+
+def _parse_chat_event(payload: dict) -> Iterator[SSEEvent]:
+    """Parse a single Chat Completions streaming chunk."""
+    model = payload.get("model", "")
+    choices = payload.get("choices", [])
+
+    # _parse_sse deduplicates Metadata — we yield it every time.
+    if model:
+        yield Metadata(api_type="chat", model=model)
+
+    for choice in choices:
+        delta = choice.get("delta", {})
+        finish = choice.get("finish_reason")
+
+        # Reasoning content
+        rc = delta.get("reasoning_content")
+        if rc:
+            yield ReasoningChunk(text=rc)
+
+        # Regular content
+        content = delta.get("content")
+        if content:
+            yield ContentChunk(text=content)
+
+        # Finish
+        if finish:
+            # usage may be at chunk level
+            usage = payload.get("usage")
+            if usage:
+                yield _extract_usage(usage)
+            yield StreamFinished(finish_reason=finish)
+
+
+def _parse_chat_nonstreaming(payload: dict) -> Iterator[SSEEvent]:
+    """Parse a single non-streaming Chat Completions response."""
+    model = payload.get("model", "")
+    if model:
+        yield Metadata(api_type="chat", model=model)
+
+    choices = payload.get("choices", [])
+    for choice in choices:
+        msg = choice.get("message", {})
+        rc = msg.get("reasoning_content")
+        if rc:
+            yield ReasoningChunk(text=rc)
+        content = msg.get("content")
+        if content:
+            yield ContentChunk(text=content)
+
+    usage = payload.get("usage")
+    if usage:
+        yield _extract_usage(usage)
+    yield StreamFinished()
+
+
+# ---------------------------------------------------------------------------
+# Non-streaming JSON parser (single response, no SSE wrapping)
+# ---------------------------------------------------------------------------
+
+def _parse_nonstreaming_json(raw: bytes) -> Iterator[SSEEvent]:
+    """Parse a single JSON response body (Responses API or Chat)."""
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as e:
+        text = raw.decode("utf-8", errors="replace")[:500]
+        _die(f"invalid JSON: {e}\n{text}")
+
+    obj_type = data.get("object", "")
+
+    if obj_type == "response":
+        # Responses API non-streaming
+        model = data.get("model", "")
+        if model:
+            yield Metadata(api_type="responses", model=model)
+
+        # Output items: reasoning blocks then message blocks
+        for item in data.get("output", []):
+            item_type = item.get("type", "")
+            if item_type == "reasoning":
+                reasoning_data = item.get("reasoning", {})
+                text = reasoning_data.get("text", "")
+                if text:
+                    yield ReasoningChunk(text=text)
+            elif item_type == "message":
+                for content_block in item.get("content", []):
+                    if content_block.get("type") == "output_text":
+                        text = content_block.get("text", "")
+                        if text:
+                            yield ContentChunk(text=text)
+
+        usage = data.get("usage")
+        if usage:
+            yield _extract_usage(usage)
+        yield StreamFinished()
+
+    elif obj_type == "chat.completion":
+        yield from _parse_chat_nonstreaming(data)
+
+    else:
+        # Fallback: try to find content anywhere
+        yield Metadata(api_type="?", model=data.get("model", ""))
+        text = json.dumps(data, indent=2)
+        yield ContentChunk(text=text)
+        usage = data.get("usage")
+        if usage:
+            yield _extract_usage(usage)
+        yield StreamFinished()
+
+
+# ---------------------------------------------------------------------------
+# Usage extraction helper
+# ---------------------------------------------------------------------------
+
+def _extract_usage(usage: dict) -> UsageInfo:
+    """Extract token counts from a usage dict.
+
+    Handles both Responses API and Chat Completions usage shapes.
+    """
+    prompt = usage.get("input_tokens") or usage.get("prompt_tokens") or 0
+    total = usage.get("total_tokens") or 0
+
+    # Completion tokens — different shapes
+    completion = usage.get("output_tokens") or usage.get("completion_tokens") or 0
+
+    # Reasoning tokens — nested under output_tokens_details or completion_tokens_details
+    details = (
+        usage.get("output_tokens_details")
+        or usage.get("completion_tokens_details")
+        or {}
+    )
+    reasoning = details.get("reasoning_tokens") or 0
+
+    # Fallback: if total not provided, estimate from prompt + completion
+    if not total:
+        total = prompt + completion
+
+    return UsageInfo(
+        prompt_tokens=prompt,
+        completion_tokens=completion,
+        reasoning_tokens=reasoning,
+        total_tokens=total,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Rich Live display
+# ---------------------------------------------------------------------------
+
+def _detect_encoding(model_name: str) -> str:
+    """Pick a tiktoken encoding name that best matches *model_name*."""
+    if not model_name:
+        return "cl100k_base"
+    name = model_name.lower()
+    # o200k_base: GPT-4o, GPT-5, o1, o3 families
+    if any(k in name for k in ("gpt-4o", "gpt-5", "o1-", "o3-", "o1-mini", "o3-mini")):
+        return "o200k_base"
+    # cl100k_base: GPT-4, GPT-3.5, many chat models
+    if any(k in name for k in ("gpt-4", "gpt-3.5", "text-embedding")):
+        return "cl100k_base"
+    # p50k_base: codex, text-davinci
+    if any(k in name for k in ("davinci", "codex", "code-")):
+        return "p50k_base"
+    # Default — most open-source and third-party models.
+    return "cl100k_base"
+
+
+@dataclass
+class DisplayResult:
+    api_type: str = ""
+    model: str = ""
+    reasoning_text: str = ""
+    content_text: str = ""
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    reasoning_tokens: int = 0
+    total_tokens: int = 0
+    # Tiktoken-based counts (estimated from content)
+    tik_reasoning_tokens: int = 0
+    tik_completion_tokens: int = 0
+    tik_prompt_tokens: int = 0
+    elapsed_ms: float = 0.0
+    finish_reason: str = ""
+
+
+def display_live(
+    events: Iterator[SSEEvent],
+    *,
+    live: bool = True,
+    max_reasoning_lines: int = 5,
+) -> DisplayResult:
+    """Consume an event iterator and render a live Rich display.
+
+    Returns a DisplayResult with all accumulated data.
+    """
+    from rich.live import Live
+    from rich.console import Group
+    from rich.panel import Panel
+    from rich.text import Text
+
+    result = DisplayResult()
+    start_time = time.monotonic()
+
+    # Event log for the live events panel (rolling buffer of last N)
+    _event_log: list[str] = []
+    _reasoning_logged = False
+    _content_logged = False
+
+    def _push_event(entry: str) -> None:
+        _event_log.append(entry)
+        if len(_event_log) > max_reasoning_lines:
+            _event_log.pop(0)
+
+    has_live = live and sys.stdout.isatty()
+
+    # Build the initial renderable (will be updated as events arrive)
+    def _make_initial_renderable() -> Group:
+        return Group(
+            Text("", style="bold cyan"),
+            Panel("(waiting for reasoning…)", title="Reasoning",
+                  height=7, border_style="yellow"),
+            Panel("(waiting for answer…)", title="Answer",
+                  height=7, border_style="green"),
+            Panel("(waiting for events…)", title="Events",
+                  height=7, border_style="blue"),
+            Text("", style="dim"),
+        )
+
+    live_ctx = Live(
+        _make_initial_renderable(),
+        refresh_per_second=10,
+        screen=False,
+    ) if has_live else None
+
+    def _build_renderable() -> Group:
+        """Build the full renderable: header + reasoning + answer + footer."""
+        elapsed = time.monotonic() - start_time
+        parts = []
+        if result.api_type:
+            parts.append(result.api_type)
+        if result.model:
+            parts.append(result.model)
+        parts.append(f"{elapsed:.1f}s")
+        header_text = Text(" · ".join(parts), style="bold cyan", no_wrap=True)
+
+        # Reasoning panel — last N lines, grows to fill height
+        if result.reasoning_text:
+            r_lines = result.reasoning_text.split("\n")
+            r_last = r_lines[-max_reasoning_lines:]
+            r_content = "\n".join(r_last)
+            r_state = "complete" if result.content_text else ""
+            r_title = f"Reasoning ({r_state})" if r_state else "Reasoning"
+            r_style = "bright_yellow" if r_state else "yellow"
+            reasoning_panel = Panel(
+                r_content, title=r_title, height=7, border_style=r_style
+            )
+        else:
+            reasoning_panel = Panel(
+                "(waiting for reasoning…)",
+                title="Reasoning", height=7, border_style="yellow",
+            )
+
+        # Answer panel — last N lines, grows to fill height
+        if result.content_text:
+            a_lines = result.content_text.split("\n")
+            a_last = a_lines[-max_reasoning_lines:]
+            a_content = "\n".join(a_last)
+            answer_panel = Panel(
+                a_content, title="Answer", height=7, border_style="green",
+            )
+        else:
+            answer_panel = Panel(
+                "(waiting for answer…)",
+                title="Answer", height=7, border_style="green",
+            )
+
+        # Events panel — last N significant events
+        if _event_log:
+            events_content = "\n".join(_event_log[-max_reasoning_lines:])
+            events_panel = Panel(
+                events_content, title="Events", height=7, border_style="blue",
+            )
+        else:
+            events_panel = Panel(
+                "(waiting for events…)",
+                title="Events", height=7, border_style="blue",
+            )
+
+        # Footer
+        # Footer — API (left) vs tiktoken (right), output-only for fair comparison
+        api_answer = max(0, result.completion_tokens - result.reasoning_tokens)
+        api_output = result.completion_tokens  # reasoning + answer (excludes prompt)
+        tik_output = result.tik_reasoning_tokens + result.tik_completion_tokens
+
+        if result.tik_reasoning_tokens or result.tik_completion_tokens:
+            footer_text = Text(
+                f"  api → output: {api_output} "
+                f"(reasoning: {result.reasoning_tokens}  ·  "
+                f"answer: {api_answer})  "
+                f"|  tik → output: {tik_output} "
+                f"(reasoning: {result.tik_reasoning_tokens}  ·  "
+                f"answer: {result.tik_completion_tokens})",
+                style="dim",
+            )
+        else:
+            footer_text = Text(
+                f"  reasoning: {result.reasoning_tokens} tk  ·  "
+                f"answer: {result.completion_tokens} tk  ·  "
+                f"total: {result.total_tokens} tk",
+                style="dim",
+            )
+
+        return Group(header_text, reasoning_panel, answer_panel, events_panel, footer_text)
+
+    def _refresh() -> None:
+        if live_ctx is None:
+            return
+        live_ctx.update(_build_renderable())
+
+    # ── Enter the live context ──
+    try:
+        if live_ctx:
+            live_ctx.__enter__()
+
+        # ── Process events ──
+        for event in events:
+            if isinstance(event, Metadata):
+                if event.api_type and not result.api_type:
+                    result.api_type = event.api_type
+                if event.model and not result.model:
+                    result.model = event.model
+                _push_event(f"● {event.api_type}  {event.model}")
+
+            elif isinstance(event, ReasoningChunk):
+                result.reasoning_text += event.text
+                if not _reasoning_logged:
+                    preview = event.text.strip()[:50]
+                    _push_event(f"▶ Reasoning  {preview}")
+                    _reasoning_logged = True
+
+            elif isinstance(event, ContentChunk):
+                if not result.content_text:
+                    result.content_text = ""
+                    _content_logged = True
+                    preview = event.text.strip()[:50]
+                    _push_event(f"▷ Answer     {preview}")
+                result.content_text += event.text
+
+            elif isinstance(event, UsageInfo):
+                if event.prompt_tokens:
+                    result.prompt_tokens = event.prompt_tokens
+                if event.completion_tokens:
+                    result.completion_tokens = event.completion_tokens
+                if event.reasoning_tokens:
+                    result.reasoning_tokens = event.reasoning_tokens
+                if event.total_tokens:
+                    result.total_tokens = event.total_tokens
+                api_ans = max(0, (event.completion_tokens or 0)
+                              - (event.reasoning_tokens or 0))
+                _push_event(
+                    f"◈ Usage     "
+                    f"prompt:{event.prompt_tokens} "
+                    f"reasoning:{event.reasoning_tokens} "
+                    f"answer:{api_ans}"
+                )
+
+            elif isinstance(event, StreamFinished):
+                result.finish_reason = event.finish_reason
+                _push_event(f"■ Finished  reason={event.finish_reason}")
+
+            _refresh()
+
+        # ── Final results ──
+        result.elapsed_ms = (time.monotonic() - start_time) * 1000
+
+        # ── Tiktoken counts ──
+        import tiktoken
+        encoding = _detect_encoding(result.model)
+        enc = tiktoken.get_encoding(encoding)
+        if result.reasoning_text:
+            result.tik_reasoning_tokens = len(enc.encode(result.reasoning_text))
+        if result.content_text:
+            result.tik_completion_tokens = len(enc.encode(result.content_text))
+        # One last refresh so footer shows tiktoken counts
+        _refresh()
+
+    finally:
+        if live_ctx:
+            live_ctx.__exit__(None, None, None)
+
+    # ── Static summary to stderr ──
+    _print_result_summary(result)
+
+    return result
+
+
+def _print_result_summary(result: DisplayResult) -> None:
+    """Print a compact one-line result summary to stderr."""
+    elapsed = result.elapsed_ms / 1000
+    parts = [
+        f"[{result.api_type or '?'}]",
+        result.model or "?",
+        f"{elapsed:.1f}s",
+    ]
+
+    api_answer = max(0, result.completion_tokens - result.reasoning_tokens)
+    api_output = result.completion_tokens
+    api_line = (
+        f"  api → output: {api_output} "
+        f"(reasoning: {result.reasoning_tokens}  ·  "
+        f"answer: {api_answer})"
+    )
+
+    # Tiktoken counts (if available)
+    if result.tik_reasoning_tokens or result.tik_completion_tokens:
+        tik_output = result.tik_reasoning_tokens + result.tik_completion_tokens
+        tik_line = (
+            f"  tik → output: {tik_output} "
+            f"(reasoning: {result.tik_reasoning_tokens}  ·  "
+            f"answer: {result.tik_completion_tokens})"
+        )
+    else:
+        tik_line = ""
+
+    print(f"\n{' · '.join(parts)}", file=sys.stderr)
+    print(api_line, file=sys.stderr)
+    if tik_line:
+        print(tik_line, file=sys.stderr)
+
+    # Show a preview of the answer
+    preview = result.content_text.strip()
+    if preview:
+        max_show = 200
+        if len(preview) > max_show:
+            preview = preview[:max_show] + "…"
+        print(f"  Answer: {preview}", file=sys.stderr)
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+def main() -> None:
+    ap = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=textwrap.dedent("""\
+            Examples:
+              oai-req --model gpt-5 --prompt "Hi" | oai-pretty
+              curl -N -s ... | oai-pretty --log ~/logs
+              cat response.json | oai-pretty --no-live
+        """),
+    )
+    ap.add_argument(
+        "--no-live",
+        action="store_true",
+        dest="no_live",
+        help="Disable live Rich display (just print final summary)",
+    )
+    ap.add_argument(
+        "--max-reasoning-lines",
+        type=int,
+        default=5,
+        dest="max_lines",
+        help="Max reasoning lines to show in live display (default: 5)",
+    )
+    args = ap.parse_args()
+
+    # Parse events from stdin
+    events = parse_events()
+
+    # Display
+    display_live(
+        events,
+        live=not args.no_live,
+        max_reasoning_lines=args.max_lines,
+    )
+
+
+if __name__ == "__main__":
+    main()
+    main()
