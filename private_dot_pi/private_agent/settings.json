@@ -14,11 +14,11 @@
   },
   "lastChangelogVersion": "1.0.0",
   "packages": [
-    "https://github.com/williamfligor/pi-duckfeed.git",
     "npm:@ff-labs/pi-fff",
     "npm:pi-markdown-preview",
     "npm:pi-powerline-footer",
     "npm:pi-rewind",
+    "npm:pi-smart-fetch",
     "npm:pi-subagents",
     "npm:pi-vim"
   ],
