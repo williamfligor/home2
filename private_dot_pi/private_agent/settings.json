@@ -20,7 +20,7 @@
     "npm:pi-rewind",
     "npm:pi-smart-fetch",
     "npm:pi-subagents",
-    "npm:pi-vim"
+    "npm:pi-vimmode"
   ],
   "defaultThinkingLevel": "high",
   "hideThinkingBlock": true,
