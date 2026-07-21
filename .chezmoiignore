@@ -13,5 +13,6 @@ __pycache__
 .pi/agent/git/
 .pi/agent/sessions/
 .pi/agent/extensions/*/node_modules
+.pi/agent/tmp/
 
 AGENTS.md
