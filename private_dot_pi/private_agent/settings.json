@@ -28,10 +28,7 @@
     "agentOverrides": {
       "context-builder": {},
       "planner": {},
-      "researcher": {
-        "tools": ["read", "write", "web_search", "web_fetch", "batch_web_fetch", "intercom"],
-        "subagentOnlyExtensions": ["~/.pi/agent/extensions/web-gate.ts"]
-      },
+      "researcher": {},
       "reviewer": {},
       "scout": {},
       "worker": {}

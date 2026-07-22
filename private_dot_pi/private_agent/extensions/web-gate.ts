@@ -5,9 +5,8 @@
  * The gate auto-deactivates all registered tools on session_start so that web
  * tools start disabled until the user opts in with /web-on.
  *
- * State persists across subagents via PI_WEB_TOOLS_ENABLED env var — child
- * processes inherit the parent's environment, so /web-on in the parent session
- * automatically enables web tools in spawned subagents.
+ * Shared state lives on globalThis so multiple extension files can register
+ * their tools without each other's module-level state.
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
@@ -15,7 +14,6 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 // ── shared state (globalThis so callers from different module scopes see it) ──
 
 const KEY = "__pi_web_gate";
-const WEB_ENV = "PI_WEB_TOOLS_ENABLED";
 
 interface GateState {
 	toolsDeactivated: boolean;
@@ -40,32 +38,6 @@ function refreshStatus(pi: ExtensionAPI, ctx: { ui: { setStatus: (k: string, t?:
 	ctx.ui.setStatus("web", any ? GLOBE : undefined);
 }
 
-// ── helpers ──
-
-function webToolsEnabled(): boolean {
-	return process.env[WEB_ENV] === "1";
-}
-
-function setWebToolsEnabled(on: boolean): void {
-	if (on) {
-		process.env[WEB_ENV] = "1";
-	} else {
-		delete process.env[WEB_ENV];
-	}
-}
-
-function ensureWebTools(pi: ExtensionAPI, on: boolean): void {
-	const s = state();
-	const active = pi.getActiveTools();
-	if (on) {
-		const missing = s.toolNames.filter((n) => !active.includes(n));
-		if (missing.length > 0) pi.setActiveTools([...active, ...missing]);
-	} else {
-		const filtered = active.filter((n) => !s.toolNames.includes(n));
-		if (filtered.length < active.length) pi.setActiveTools(filtered);
-	}
-}
-
 // ── public API ──
 
 export function registerWebGate(pi: ExtensionAPI, toolName: string) {
@@ -74,11 +46,13 @@ export function registerWebGate(pi: ExtensionAPI, toolName: string) {
 	// deduplicate
 	if (!s.toolNames.includes(toolName)) s.toolNames.push(toolName);
 
-	// sync web tool state on startup (once per process)
+	// disable registered tools on startup (once per process)
 	if (!s.toolsDeactivated) {
 		s.toolsDeactivated = true;
 		pi.on("session_start", () => {
-			ensureWebTools(pi, webToolsEnabled());
+			const active = pi.getActiveTools();
+			const filtered = active.filter((n) => !s.toolNames.includes(n));
+			if (filtered.length < active.length) pi.setActiveTools(filtered);
 		});
 	}
 
@@ -87,9 +61,8 @@ export function registerWebGate(pi: ExtensionAPI, toolName: string) {
 	s.commandsRegistered = true;
 
 	pi.registerCommand("web-on", {
-		description: "Enable all web-browsing tools (persists to subagents)",
+		description: "Enable all web-browsing tools",
 		handler: async (_args, ctx) => {
-			setWebToolsEnabled(true);
 			const active = pi.getActiveTools();
 			const missing = s.toolNames.filter((n) => !active.includes(n));
 			if (missing.length === 0) {
@@ -103,9 +76,8 @@ export function registerWebGate(pi: ExtensionAPI, toolName: string) {
 	});
 
 	pi.registerCommand("web-off", {
-		description: "Disable all web-browsing tools (persists to subagents)",
+		description: "Disable all web-browsing tools",
 		handler: async (_args, ctx) => {
-			setWebToolsEnabled(false);
 			const active = pi.getActiveTools();
 			const filtered = active.filter((n) => !s.toolNames.includes(n));
 			if (filtered.length === active.length) {
