@@ -1,0 +1,109 @@
+{
+  "runId": "b90a3123",
+  "agent": "researcher",
+  "task": "Search the web for: \"pi-subagents npm package documentation\" and summarize what you find.\n\n---\n**Output:**\nWrite your findings to exactly this path: /home/will/.local/share/chezmoi/.pi-subagents/artifacts/outputs/b90a3123/research.md\nThis path is authoritative for this run.\nIgnore any other output filename or output path mentioned elsewhere, including output destinations in the base agent prompt, system prompt, or task instructions.",
+  "exitCode": 1,
+  "usage": {
+    "input": 9422,
+    "output": 2823,
+    "cacheRead": 27648,
+    "cacheWrite": 0,
+    "cost": 0.006654804000000001,
+    "turns": 5
+  },
+  "model": "opencode-go/deepseek-v4-pro:medium",
+  "attemptedModels": [
+    "opencode-go/deepseek-v4-pro:medium"
+  ],
+  "modelAttempts": [
+    {
+      "model": "opencode-go/deepseek-v4-pro:medium",
+      "success": false,
+      "exitCode": 1,
+      "error": "Agent 'researcher' requested unavailable child tools: fetch_content, get_search_content.\nThe `tools` field is a strict allowlist; it does not load extension code.\nFor extension tools, add the provider path to `subagentOnlyExtensions` (child-only), `extensions`, or as a path-like entry in `tools`, while keeping each registered tool name in `tools`.\nFor MCP tools, verify the MCP adapter configuration and selected tool names. For builtin tools, verify the name against the installed Pi version.",
+      "usage": {
+        "input": 9422,
+        "output": 2823,
+        "cacheRead": 27648,
+        "cacheWrite": 0,
+        "cost": 0.006654804000000001,
+        "turns": 5
+      }
+    }
+  ],
+  "durationMs": 47654,
+  "toolCount": 8,
+  "error": "Agent 'researcher' requested unavailable child tools: fetch_content, get_search_content.\nThe `tools` field is a strict allowlist; it does not load extension code.\nFor extension tools, add the provider path to `subagentOnlyExtensions` (child-only), `extensions`, or as a path-like entry in `tools`, while keeping each registered tool name in `tools`.\nFor MCP tools, verify the MCP adapter configuration and selected tool names. For builtin tools, verify the name against the installed Pi version.",
+  "acceptance": {
+    "status": "attested",
+    "explicit": false,
+    "effectiveAcceptance": {
+      "level": "attested",
+      "explicit": false,
+      "inferredReason": [
+        "read-only/reviewer-style agent"
+      ],
+      "criteria": [
+        {
+          "id": "criterion-1",
+          "must": "Return concrete findings with file paths and severity when applicable",
+          "evidence": [
+            "review-findings",
+            "residual-risks"
+          ],
+          "severity": "required"
+        }
+      ],
+      "evidence": [
+        "review-findings",
+        "residual-risks"
+      ],
+      "verify": [],
+      "stopRules": []
+    },
+    "inferredReason": [
+      "read-only/reviewer-style agent"
+    ],
+    "criteria": [
+      {
+        "id": "criterion-1",
+        "must": "Return concrete findings with file paths and severity when applicable",
+        "evidence": [
+          "review-findings",
+          "residual-risks"
+        ],
+        "severity": "required"
+      }
+    ],
+    "runtimeChecks": [],
+    "verifyRuns": [],
+    "childReport": {
+      "criteriaSatisfied": [
+        {
+          "id": "criterion-1",
+          "status": "satisfied",
+          "evidence": "Returned 10 concrete findings with specific file paths (.pi/agents/{name}.md), package names, npm version numbers, and severity distinctions (hard error vs warning for model scope)."
+        }
+      ],
+      "changedFiles": [
+        "/home/will/.local/share/chezmoi/.pi-subagents/artifacts/outputs/b90a3123/research.md"
+      ],
+      "testsAddedOrUpdated": [],
+      "commandsRun": [],
+      "validationOutput": [
+        "Research brief written to specified output path with 10 findings, source citations, gaps analysis, and acceptance report."
+      ],
+      "residualRisks": [
+        "Community-maintained package with multiple forks; documentation may diverge between forks. Version-specific details limited without reading full source."
+      ],
+      "noStagedFiles": true,
+      "diffSummary": "Created research.md with 10 findings on pi-subagents npm package covering installation, built-in agents, frontmatter configuration, execution modes, mid-run steering, intercom bridge, model scope enforcement, event bus, forks, and registry metadata.",
+      "reviewFindings": [
+        "no blockers"
+      ],
+      "manualNotes": "Package is community-maintained (nicobailon primary author), not officially documented on a Pi-maintained site. Multiple active forks exist with varying feature sets."
+    }
+  },
+  "transcriptPath": "/home/will/.local/share/chezmoi/.pi-subagents/artifacts/b90a3123_researcher_0_transcript.jsonl",
+  "timestamp": 1784757035006
+}

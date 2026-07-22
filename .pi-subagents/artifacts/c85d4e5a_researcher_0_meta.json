@@ -1,0 +1,114 @@
+{
+  "runId": "c85d4e5a",
+  "agent": "researcher",
+  "task": "Search the web for \"pi-coding-agent latest version 2026\" and report what you find.\n\n---\n**Output:**\nWrite your findings to exactly this path: /home/will/.local/share/chezmoi/.pi-subagents/artifacts/outputs/c85d4e5a/research.md\nThis path is authoritative for this run.\nIgnore any other output filename or output path mentioned elsewhere, including output destinations in the base agent prompt, system prompt, or task instructions.",
+  "exitCode": 1,
+  "usage": {
+    "input": 16344,
+    "output": 4261,
+    "cacheRead": 79488,
+    "cacheWrite": 0,
+    "cost": 0.011104853999999999,
+    "turns": 8
+  },
+  "model": "opencode-go/deepseek-v4-pro:medium",
+  "attemptedModels": [
+    "opencode-go/deepseek-v4-pro:medium"
+  ],
+  "modelAttempts": [
+    {
+      "model": "opencode-go/deepseek-v4-pro:medium",
+      "success": false,
+      "exitCode": 1,
+      "error": "Agent 'researcher' requested unavailable child tools: fetch_content, get_search_content.\nThe `tools` field is a strict allowlist; it does not load extension code.\nFor extension tools, add the provider path to `subagentOnlyExtensions` (child-only), `extensions`, or as a path-like entry in `tools`, while keeping each registered tool name in `tools`.\nFor MCP tools, verify the MCP adapter configuration and selected tool names. For builtin tools, verify the name against the installed Pi version.",
+      "usage": {
+        "input": 16344,
+        "output": 4261,
+        "cacheRead": 79488,
+        "cacheWrite": 0,
+        "cost": 0.011104853999999999,
+        "turns": 8
+      }
+    }
+  ],
+  "durationMs": 78266,
+  "toolCount": 16,
+  "error": "Agent 'researcher' requested unavailable child tools: fetch_content, get_search_content.\nThe `tools` field is a strict allowlist; it does not load extension code.\nFor extension tools, add the provider path to `subagentOnlyExtensions` (child-only), `extensions`, or as a path-like entry in `tools`, while keeping each registered tool name in `tools`.\nFor MCP tools, verify the MCP adapter configuration and selected tool names. For builtin tools, verify the name against the installed Pi version.",
+  "acceptance": {
+    "status": "attested",
+    "explicit": false,
+    "effectiveAcceptance": {
+      "level": "attested",
+      "explicit": false,
+      "inferredReason": [
+        "read-only/reviewer-style agent"
+      ],
+      "criteria": [
+        {
+          "id": "criterion-1",
+          "must": "Return concrete findings with file paths and severity when applicable",
+          "evidence": [
+            "review-findings",
+            "residual-risks"
+          ],
+          "severity": "required"
+        }
+      ],
+      "evidence": [
+        "review-findings",
+        "residual-risks"
+      ],
+      "verify": [],
+      "stopRules": []
+    },
+    "inferredReason": [
+      "read-only/reviewer-style agent"
+    ],
+    "criteria": [
+      {
+        "id": "criterion-1",
+        "must": "Return concrete findings with file paths and severity when applicable",
+        "evidence": [
+          "review-findings",
+          "residual-risks"
+        ],
+        "severity": "required"
+      }
+    ],
+    "runtimeChecks": [],
+    "verifyRuns": [],
+    "childReport": {
+      "criteriaSatisfied": [
+        {
+          "id": "criterion-1",
+          "status": "satisfied",
+          "evidence": "Returned concrete findings with file paths: research output written to /home/will/.local/share/chezmoi/.pi-subagents/artifacts/outputs/c85d4e5a/research.md (6659 bytes). Identified latest npm version (0.81.1), GitHub release tag (v0.81.1), PyPI version (0.6.0), security CVE (CVE-2026-54325), and community fork versions with source citations."
+        }
+      ],
+      "changedFiles": [
+        "/home/will/.local/share/chezmoi/.pi-subagents/artifacts/outputs/c85d4e5a/research.md"
+      ],
+      "testsAddedOrUpdated": [],
+      "commandsRun": [],
+      "validationOutput": [
+        "File written successfully: 6659 bytes",
+        "All 10 findings have inline source URL citations",
+        "Sources section distinguishes kept vs dropped with rationale",
+        "Gaps section documents 4 areas of remaining uncertainty"
+      ],
+      "residualRisks": [
+        "PyPI package (0.6.0) version gap vs npm (0.81.1) is unexplained — may be a separate distribution channel or unofficial repackaging",
+        "Exact release timestamp for 0.81.1 not retrieved — reported as ~July 22, 2026 based on relative timestamps in search results",
+        "Minimum Node.js version for 0.81.x was not confirmed"
+      ],
+      "noStagedFiles": false,
+      "diffSummary": "Created new research.md with 10 findings covering npm latest version (0.81.1), GitHub releases, project migration history, PyPI version, security CVE, community forks, and ecosystem compatibility.",
+      "reviewFindings": [
+        "no blockers"
+      ],
+      "manualNotes": "Search context window: late July 2026. The npm registry shows 0.81.1 as latest with 379 dependents. The Pi project has very rapid release cadence — version numbers may advance within days."
+    }
+  },
+  "transcriptPath": "/home/will/.local/share/chezmoi/.pi-subagents/artifacts/c85d4e5a_researcher_0_transcript.jsonl",
+  "timestamp": 1784757443354
+}

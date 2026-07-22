@@ -28,7 +28,9 @@
     "agentOverrides": {
       "context-builder": {},
       "planner": {},
-      "researcher": {},
+      "researcher": {
+        "tools": ["read", "write", "web_search", "web_fetch", "batch_web_fetch", "intercom"]
+      },
       "reviewer": {},
       "scout": {},
       "worker": {}
