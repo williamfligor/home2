@@ -2,3 +2,4 @@
 !.vim/utils/
 node_modules
 __pycache__/
+.pi-subagents/
