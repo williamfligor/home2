@@ -11,32 +11,17 @@
 /**
  * UV Extension - Redirects Python tooling to uv equivalents
  *
- * This extension wraps the bash tool to prepend intercepted-commands to PATH,
- * which contains shim scripts that intercept common Python tooling commands
- * and redirect agents to use uv instead.
+ * Blocks pip/pip3/poetry and python -m pip/venv/py_compile at bash spawn time
+ * with helpful messages pointing to the uv equivalents.
  *
  * Intercepted commands:
  * - pip/pip3: Blocked with suggestions to use `uv add` or `uv run --with`
  * - poetry: Blocked with uv equivalents (uv init, uv add, uv sync, uv run)
- * - python/python3: Redirected through `uv run` to a real interpreter path,
- *   with special handling to block `python -m pip`, `python -m venv`, and
- *   `python -m py_compile`
- *
- * The shim scripts are located in the intercepted-commands directory and
- * provide helpful error messages with the equivalent uv commands.
- *
- * Note: PATH shims are bypassable via explicit interpreter paths
- * (for example `.venv/bin/python`). To close that gap, this extension also
- * blocks disallowed invocations at bash spawn time.
+ * - python/python3: python -m pip/venv/py_compile blocked, suggestions for uv equivalents
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { isToolCallEventType } from "@mariozechner/pi-coding-agent";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const interceptedCommandsPath = join(__dirname, "..", "intercepted-commands");
 
 function getBlockedCommandMessage(command: string): string | null {
   // Match commands at the start of a shell segment (start/newline/; /&& /|| /|)
@@ -124,7 +109,5 @@ export default function (pi: ExtensionAPI) {
     if (blocked) {
       return { block: true, reason: blocked };
     }
-
-    event.input.command = `export PATH="${interceptedCommandsPath}:$PATH"\n${event.input.command}`;
   });
 }

@@ -20,7 +20,6 @@ end
 -- The github backend places exactly one binary file in the mise install
 -- directory; we auto-discover it rather than guessing the platform name.
 local function link_blink_binary()
-  vim.notify("blink.cmp: asdf", vim.log.levels.WARN)
   local mise_bin = vim.fn.system("mise where github:saghen/blink.cmp 2>/dev/null"):gsub("%s+", "")
   local mise_src = vim.fn.system("mise where http:blink-cmp 2>/dev/null"):gsub("%s+", "")
   if mise_bin == "" or mise_src == "" then

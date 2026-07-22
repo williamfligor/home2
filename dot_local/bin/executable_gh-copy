@@ -15,7 +15,7 @@ import json
 import urllib.request
 import urllib.error
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 
 # ---------------------------------------------------------------------------
 # Comment styles keyed by file extension
@@ -130,7 +130,7 @@ def get_file_commit(owner: str, repo: str, ref: str, path: str) -> tuple[str, st
             return sha, date.strftime("%Y-%m-%d")
     except Exception:
         pass
-    return "unknown", datetime.utcnow().strftime("%Y-%m-%d")
+    return "unknown", datetime.now(tz=timezone.utc).strftime("%Y-%m-%d")
 
 
 def get_repo_author(owner: str, repo: str) -> str:
