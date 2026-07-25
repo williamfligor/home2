@@ -1,72 +1,11 @@
 -- ── Plugin Specifications ────────────────────────────────────
--- All plugins managed by lazy.nvim, downloaded by mise http: backend.
--- lazy.nvim itself is the only git-based plugin (plugin manager).
-
--- mise_dir resolves through mise's version symlink so consumers
--- never need their version updated when the pin in mise.toml bumps.
--- Handles 'latest' (default), 'rel_latest' (rel-prefixed), 'vlatest' (legacy v-prefixed).
-local function mise_dir(name)
-  local base = vim.fn.expand("$HOME/.local/share/mise/installs/http-" .. name)
-  for _, symlink in ipairs({ "latest", "rel_latest", "vlatest" }) do
-    local path = base .. "/" .. symlink
-    if vim.fn.isdirectory(path) == 1 then return path end
-  end
-  vim.notify("mise_dir(" .. name .. "): no version symlink found (latest/rel_latest/vlatest), using base", vim.log.levels.WARN)
-  return base
-end
-
--- Links the mise-installed blink.cmp prebuilt binary to where
--- blink.cmp expects it, so cargo build / auto-download are unnecessary.
--- The github backend places exactly one binary file in the mise install
--- directory; we auto-discover it rather than guessing the platform name.
-local function link_blink_binary()
-  local mise_bin = vim.fn.system("mise where github:saghen/blink.cmp 2>/dev/null"):gsub("%s+", "")
-  local mise_src = vim.fn.system("mise where http:blink-cmp 2>/dev/null"):gsub("%s+", "")
-  if mise_bin == "" or mise_src == "" then
-    vim.notify("blink.cmp: mise where returned empty (mise installed? run mise install?)", vim.log.levels.WARN)
-    return
-  end
-
-  -- Discover the one prebuilt binary in the github install directory
-  local handle = vim.loop.fs_scandir(mise_bin)
-  if not handle then
-    vim.notify("blink.cmp: cannot list " .. mise_bin, vim.log.levels.WARN)
-    return
-  end
-
-  local source
-  while true do
-    local name, type = vim.loop.fs_scandir_next(handle)
-    if not name then break end
-    -- Skip directories (e.g. mise's .mise-<version> internal dir)
-    if type == "file" then
-      source = mise_bin .. "/" .. name
-      break
-    end
-  end
-
-  if not source then
-    vim.notify("blink.cmp: no binary file found in " .. mise_bin, vim.log.levels.WARN)
-    return
-  end
-
-  local ext = (jit.os:lower() == "mac" or jit.os:lower() == "osx") and ".dylib"
-    or (jit.os:lower() == "windows") and ".dll"
-    or ".so"
-
-  local target_dir = mise_src .. "/target/release"
-  local target = target_dir .. "/libblink_cmp_fuzzy" .. ext
-
-  vim.fn.mkdir(target_dir, "p")
-  -- Always re-link to pick up mise version upgrades (ln -sf is atomic)
-  vim.fn.system({ "ln", "-sf", source, target })
-end
+-- All plugins managed natively by lazy.nvim (no mise dependency).
+-- lazy.nvim clones each plugin from GitHub to stdpath("data")/lazy/.
 
 return {
   -- ── Colorscheme ────────────────────────────────────────────
   {
-    name = "solarized.nvim",
-    dir = mise_dir("solarized-nvim"),
+    "maxmx03/solarized.nvim",
     lazy = false,
     priority = 1000,
     config = function()
@@ -79,9 +18,8 @@ return {
 
   -- ── Statusline ─────────────────────────────────────────────
   {
-    name = "lualine.nvim",
-    dir = mise_dir("lualine-nvim"),
-    dependencies = { { name = "nvim-web-devicons", dir = mise_dir("nvim-web-devicons") } },
+    "nvim-lualine/lualine.nvim",
+    dependencies = { "nvim-tree/nvim-web-devicons" },
     event = "VeryLazy",
     opts = {
       options = {
@@ -94,8 +32,7 @@ return {
 
   -- ── Which-key ──────────────────────────────────────────────
   {
-    name = "which-key.nvim",
-    dir = mise_dir("which-key-nvim"),
+    "folke/which-key.nvim",
     event = "VeryLazy",
     opts = {
       plugins = { spelling = { enabled = true } },
@@ -122,16 +59,14 @@ return {
 
   -- ── Fuzzy finder ───────────────────────────────────────────
   {
-    name = "fzf",
-    dir = mise_dir("fzf"),
+    "junegunn/fzf",
     build = ":call fzf#install()",
     lazy = false,
   },
   {
-    name = "fzf.vim",
-    dir = mise_dir("fzf-vim"),
+    "junegunn/fzf.vim",
     lazy = false,
-    dependencies = { { name = "fzf", dir = mise_dir("fzf") } },
+    dependencies = { "junegunn/fzf" },
     keys = {
       { "<leader>?",  "<cmd>Maps<CR>",                        desc = "Key maps" },
       { "<leader>bb", "<cmd>Buffers<CR>",                     desc = "Buffers" },
@@ -150,8 +85,7 @@ return {
 
   -- ── Git signs ──────────────────────────────────────────────
   {
-    name = "gitsigns.nvim",
-    dir = mise_dir("gitsigns-nvim"),
+    "lewis6991/gitsigns.nvim",
     event = "BufReadPre",
     opts = {
       signs = {
@@ -180,16 +114,14 @@ return {
 
   -- ── Commenting ─────────────────────────────────────────────
   {
-    name = "Comment.nvim",
-    dir = mise_dir("comment-nvim"),
+    "numToStr/Comment.nvim",
     event = { "BufReadPost", "BufNewFile" },
     opts = {},
   },
 
   -- ── Undotree ───────────────────────────────────────────────
   {
-    name = "undotree",
-    dir = mise_dir("undotree"),
+    "mbbill/undotree",
     cmd = "UndotreeToggle",
     keys = {
       { "<leader>au", "<cmd>UndotreeToggle<cr>", desc = "Toggle undo tree" },
@@ -198,8 +130,7 @@ return {
 
   -- ── Indent guides ──────────────────────────────────────────
   {
-    name = "indent-blankline.nvim",
-    dir = mise_dir("indent-blankline-nvim"),
+    "lukas-reineke/indent-blankline.nvim",
     event = { "BufReadPost", "BufNewFile" },
     main = "ibl",
     opts = {
@@ -208,17 +139,9 @@ return {
     },
   },
 
-  -- ── Tmux integration ──────────────────────────────────────
-  {
-    name = "vim-tmux-navigator",
-    dir = mise_dir("vim-tmux-navigator"),
-    event = "VeryLazy",
-  },
-
   -- ── LSP ────────────────────────────────────────────────────
   {
-    name = "nvim-lspconfig",
-    dir = mise_dir("nvim-lspconfig"),
+    "neovim/nvim-lspconfig",
     event = { "BufReadPre", "BufNewFile" },
     config = function()
       if vim.fn.executable("pylsp") == 1 then
@@ -248,10 +171,9 @@ return {
 
   -- ── Completion ─────────────────────────────────────────────
   {
-    name = "blink.cmp",
-    dir = mise_dir("blink-cmp"),
+    "saghen/blink.cmp",
+    version = "1.*",
     event = "InsertEnter",
-    init = link_blink_binary,
     opts = {
       keymap = {
         preset = "enter",
@@ -282,22 +204,19 @@ return {
       },
       fuzzy = {
         implementation = "rust",
-        prebuilt_binaries = { download = false },
       },
     },
   },
 
   -- ── EditorConfig ───────────────────────────────────────────
   {
-    name = "editorconfig.nvim",
-    dir = mise_dir("editorconfig-nvim"),
+    "gpanders/editorconfig.nvim",
     event = "VeryLazy",
   },
 
   -- ── Git fugitive ───────────────────────────────────────────
   {
-    name = "vim-fugitive",
-    dir = mise_dir("vim-fugitive"),
+    "tpope/vim-fugitive",
     cmd = { "Git", "G" },
     keys = {
       { "<leader>gS", "<cmd>Git<cr>", desc = "Git status" },
@@ -306,8 +225,7 @@ return {
 
   -- ── Sidekick (AI assistant) ────────────────────────────────
   {
-    name = "sidekick.nvim",
-    dir = mise_dir("sidekick-nvim"),
+    "folke/sidekick.nvim",
     lazy = false,
     config = function()
       require("sidekick").setup({
@@ -337,9 +255,7 @@ return {
 
   -- ── Snacks (dashboard, etc.) ───────────────────────────────
   {
-    name = "snacks.nvim",
-    dir = mise_dir("snacks-nvim"),
+    "folke/snacks.nvim",
     lazy = false,
   },
 }
-

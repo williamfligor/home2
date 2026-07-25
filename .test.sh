@@ -66,23 +66,13 @@ $RUNNER run --rm chezmoi-test zsh -ic '
     echo "[3] clean startup check..."
     nvim --headless -c "lua print(\"startup OK\")" -c "quit" 2>&1 | tee /tmp/nvim-startup.log
 
-    echo "[4] mise-installed plugin dirs..."
-    for plugin in lazy-nvim nvim-lspconfig blink-cmp sidekick-nvim snacks-nvim; do
-        dir="$HOME/.local/share/mise/installs/http-$plugin/latest"
-        if [ -d "$dir" ]; then
-            echo "  ✓ http-$plugin ($dir)"
-        else
-            echo "  ✗ http-$plugin MISSING"
-        fi
-    done
-
-    echo "[5] plugin loadability..."
+    echo "[4] plugin loadability..."
     for plugin in lazy lspconfig blink.cmp sidekick snacks; do
         result=$(nvim --headless -c "lua local ok, e = pcall(require, \"$plugin\"); if ok then print(\"✓ $plugin loaded\") else print(\"✗ \" .. tostring(e):gsub(\"\\n\",\" \")) end" -c "quit" 2>&1 | grep -E "^[✓✗]")
         echo "  $result"
     done
 
-    echo "[6] lockfile..."
+    echo "[5] lockfile..."
     if [ -f "$HOME/.config/nvim/lazy-lock.json" ]; then
         count=$(grep -oP '^\s*"\K[^"]+' "$HOME/.config/nvim/lazy-lock.json" | sort -u | wc -l)
         echo "  ✓ lazy-lock.json ($count entries)"
@@ -90,7 +80,7 @@ $RUNNER run --rm chezmoi-test zsh -ic '
         echo "  ✗ lazy-lock.json MISSING"
     fi
 
-    echo "[7] error scan..."
+    echo "[6] error scan..."
     errors=$(grep -E "Error |E[0-9]+:" /tmp/nvim-startup.log 2>/dev/null | grep -iv "blink.cmp" | grep -iv "cargo" || true)
     if [ -n "$errors" ]; then
         echo "  ⚠ errors found:"
