@@ -58,13 +58,6 @@ pandoc = "latest"
   strip_components = 1,
 }
 
-# Commit-hash pinned.
-"http:vi-mode" = {
-  version = "0.0.1",
-  url = "https://github.com/sineto/vi-mode/archive/2f84dd922cdcceff62ef40ea1a5495c30dcbb280.tar.gz",
-  strip_components = 1,
-}
-
 "http:zsh-you-should-use" = {
   version = "1.11.1",
   url = "https://github.com/MichaelAquilina/zsh-you-should-use/archive/refs/tags/{{ version }}.tar.gz",
