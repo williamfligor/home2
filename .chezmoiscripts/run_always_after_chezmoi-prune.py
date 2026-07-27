@@ -116,47 +116,7 @@ STRIP_PREFIXES = (
     "symlink_",
 )
 
-# Paths that shouldn't be installed to the home directory
-INTERNAL_PATTERNS = (
-    ".git/",
-    ".github/",
-    ".chezmoi",
-    ".data",
-    ".data/",
-    ".docs",
-    ".docs/",
-    ".chezmoiscripts",
-    ".chezmoiscripts/",
-    ".chezmoitemplates",
-    ".chezmoitemplates/",
-    ".chezmoiexternal.toml",
-    ".chezmoiexternal.toml.tmpl",
-)
 
-INTERNAL_FILES = frozenset({
-    "AGENTS.md",
-    "README.md",
-    ".dockerignore",
-    ".test.sh",
-    "mise.lock",
-    ".gitignore",
-    ".Dockerfile",
-})
-
-INTERNAL_SUFFIXES = frozenset({".zwc", ".md"})
-
-
-def is_chezmoi_internal(source_path: str) -> bool:
-    """Return True if the path is a chezmoi internal file (not installed)."""
-    if source_path.startswith(INTERNAL_PATTERNS):
-        return True
-    if source_path in INTERNAL_FILES:
-        return True
-    if any(source_path.endswith(s) for s in INTERNAL_SUFFIXES):
-        return True
-    if source_path.startswith("bin/") or source_path == "bin":
-        return True
-    return False
 
 
 def strip_component_prefixes(component: str) -> str:
@@ -199,13 +159,19 @@ def source_to_target(source_path: str, home: Path) -> Path | None:
         else:
             break
 
-    # Skip scripts / templates / externals
+    # Skip scripts / templates / externals and other non-installed paths
     if source.startswith((
         ".chezmoiscripts",
         ".chezmoitemplates",
+        ".data",
+        ".data/",
+        ".docs",
+        ".docs/",
+        ".git/",
+        ".github/",
+        ".chezmoi",
+        ".chezmoiexternal.toml",
     )):
-        return None
-    if source == ".chezmoiexternal.toml":
         return None
 
     parts = source.split("/")
@@ -217,10 +183,12 @@ def source_to_target(source_path: str, home: Path) -> Path | None:
     basename = first
     has_dot = False
     literal_mode = False
+    matched_prefix = False
     while not literal_mode:
         matched = False
         for prefix in ATTRIBUTE_PREFIXES:
             if basename.startswith(prefix):
+                matched_prefix = True
                 basename = basename[len(prefix) :]
                 if prefix == "dot_":
                     has_dot = True
@@ -230,6 +198,11 @@ def source_to_target(source_path: str, home: Path) -> Path | None:
                 break
         if not matched:
             break
+
+    # Root-level files without any chezmoi attribute prefix are repo artifacts,
+    # not chezmoi-managed files — skip them.
+    if len(parts) == 1 and not matched_prefix:
+        return None
 
     if has_dot:
         target_first = "." + basename
@@ -264,7 +237,7 @@ def get_current_targets(repo_root: Path, home: Path) -> set[Path]:
     targets: set[Path] = set()
     for line in result.stdout.splitlines():
         line = line.strip()
-        if not line or is_chezmoi_internal(line):
+        if not line:
             continue
         target = source_to_target(line, home)
         if target is not None:
@@ -326,17 +299,12 @@ def main() -> None:
     # prefixes but targets the same $HOME path.
     current_targets = get_current_targets(repo_root, home) if not args.no_skip_existing else set()
 
-    skip_internal = 0
     skip_existing = 0
     map_failed_count = 0
     map_failed_files: list[str] = []
     orphans: list[tuple[str, Path]] = []
 
     for source_path in sorted(deleted):
-        if is_chezmoi_internal(source_path):
-            skip_internal += 1
-            continue
-
         target = source_to_target(source_path, home)
         if target is None:
             map_failed_count += 1
@@ -370,7 +338,6 @@ def main() -> None:
 
     print("=== Scan results ===")
     print(f"Total deleted files found in history: {len(deleted)}")
-    print(f"Skipped (chezmoi internal):           {skip_internal}")
     print(f"Skipped (exists in source):           {skip_existing}")
     print(f"Skipped (mapping failed):             {map_failed_count}")
     if map_failed_files:
