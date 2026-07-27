@@ -8,11 +8,18 @@ __pycache__
 
 .pi/**/.pi
 .pi/agent/npm
+.pi/agent/auth.json
 .pi/agent/private_auth.json
+.pi/agent/private_models-store.json
+.pi/agent/trust.json
+.pi/agent/pi-web/
+.pi/agent/pi-web.sqlite
 .pi/agent/run-history.jsonl
 .pi/agent/git/
 .pi/agent/sessions/
 .pi/agent/extensions/*/node_modules
 .pi/agent/tmp/
+
+.pi/agent/extensions/orca-*
 
 AGENTS.md
