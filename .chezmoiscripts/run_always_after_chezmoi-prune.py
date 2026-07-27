@@ -265,6 +265,67 @@ def get_deleted_files(repo_root: Path) -> set[str]:
     return files
 
 
+def is_dir_effectively_empty(directory: Path) -> bool:
+    """Return True if the directory contains no meaningful files.
+    
+    Ignores .keep and .gitkeep placeholder files commonly used to track
+    empty directories in git.
+    """
+    if not directory.is_dir():
+        return False
+    try:
+        for entry in directory.iterdir():
+            if entry.name in (".keep", ".gitkeep"):
+                continue
+            if entry.is_dir() and not is_dir_effectively_empty(entry):
+                return False
+            if entry.is_file():
+                return False
+        return True
+    except PermissionError:
+        return False
+
+
+def find_orphaned_dirs(
+    deleted: set[str],
+    current_targets: set[Path],
+    home: Path,
+) -> set[Path]:
+    """Find directories at home that were previously managed by chezmoi
+    (had files inside them that were deleted from the repo) but are now
+    effectively empty on the filesystem.
+    
+    Returns a set of target paths (under home) to consider removing.
+    """
+    # Collect all parent directories of deleted files that map successfully.
+    parent_dirs: set[Path] = set()
+    for source_path in deleted:
+        target = source_to_target(source_path, home)
+        if target is None:
+            continue
+        if target in current_targets:
+            continue
+        # Walk up the target path to find the home-relative directory chain.
+        # The parent of the target file is the directory we care about.
+        parent = target.parent
+        while parent != home:
+            parent_dirs.add(parent)
+            parent = parent.parent
+
+    # Check which ones are effectively empty on the filesystem.
+    orphaned: set[Path] = set()
+    # Sort by depth (deepest first) so we add children before parents.
+    for d in sorted(parent_dirs, key=lambda p: -len(p.parents)):
+        if not d.exists() or not is_dir_effectively_empty(d):
+            continue
+        # If a deeper child is already a candidate, skip the parent —
+        # removing the child will make the parent empty naturally.
+        if any(d in p.parents for p in orphaned):
+            continue
+        orphaned.add(d)
+    return orphaned
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -300,15 +361,12 @@ def main() -> None:
     current_targets = get_current_targets(repo_root, home) if not args.no_skip_existing else set()
 
     skip_existing = 0
-    map_failed_count = 0
-    map_failed_files: list[str] = []
     orphans: list[tuple[str, Path]] = []
 
     for source_path in sorted(deleted):
         target = source_to_target(source_path, home)
         if target is None:
-            map_failed_count += 1
-            map_failed_files.append(source_path)
+            # Not a home-directory file — chezmoi internal, repo artifact, etc.
             continue
 
         if target in current_targets:
@@ -327,35 +385,19 @@ def main() -> None:
             unique_orphans.append((src, tgt))
     orphans = unique_orphans
 
-    if not orphans:
-        return
-
-    print("=== Orphaned chezmoi file finder ===")
-    print(f"Repo:       {repo_root}")
-    print(f"Home:       {home}")
-    print(f"Quarantine: {quarantine}")
-    print()
-
-    print("=== Scan results ===")
+    print("= Orphaned chezmoi file finder =")
     print(f"Total deleted files found in history: {len(deleted)}")
     print(f"Skipped (exists in source):           {skip_existing}")
-    print(f"Skipped (mapping failed):             {map_failed_count}")
-    if map_failed_files:
-        for f in map_failed_files:
-            print(f"  ↳ {f}")
     print(f"Orphaned on filesystem:               {len(orphans)}")
     print()
 
-    if not orphans:
-        print("No orphaned files found! Your system is clean.")
-        return
-
-    print(
-        f"Found {len(orphans)} orphaned file(s) that were previously managed by chezmoi\n"
-        "but have been removed from the dotfiles repo.\n"
-    )
-    print(f"They will be MOVED to: {quarantine}")
-    print("(instead of being deleted, so you can recover them if needed)\n")
+    if orphans:
+        print(
+            f"Found {len(orphans)} orphaned file(s) that were previously managed by chezmoi\n"
+            "but have been removed from the dotfiles repo.\n"
+        )
+        print(f"They will be MOVED to: {quarantine}")
+        print("(instead of being deleted, so you can recover them if needed)\n")
 
     # Create quarantine directory
     quarantine.mkdir(parents=True, exist_ok=True)
@@ -407,6 +449,38 @@ def main() -> None:
     print()
     print("To purge the quarantine:")
     print(f"  rm -rf {quarantine}")
+
+    # -----------------------------------------------------------------------
+    # Orphaned directory cleanup
+    # -----------------------------------------------------------------------
+    orphaned_dirs = find_orphaned_dirs(deleted, current_targets, home)
+    if orphaned_dirs:
+        print()
+        print("=" * 60)
+        print("Orphaned directories (previously managed, now empty):")
+        print("=" * 60)
+        for d in sorted(orphaned_dirs):
+            display = f"~/{d.relative_to(home)}"
+            if args.yes:
+                try:
+                    shutil.rmtree(d)
+                    print(f"  ✓ Removed {display}")
+                except OSError as e:
+                    print(f"  ✗ Failed to remove {display}: {e}")
+            else:
+                try:
+                    answer = input(f"Remove empty directory {display}? [Y/n] ").strip().lower()
+                except (EOFError, KeyboardInterrupt):
+                    print()
+                    break
+                if answer in ("n", "no"):
+                    print(f"  → Skipped {display}")
+                else:
+                    try:
+                        shutil.rmtree(d)
+                        print(f"  ✓ Removed {display}")
+                    except OSError as e:
+                        print(f"  ✗ Failed to remove {display}: {e}")
 
 
 if __name__ == "__main__":
