@@ -2,8 +2,13 @@
  * web-gate — Shared /web-on and /web-off command for any web browsing tools.
  *
  * Other extensions import { registerWebGate } and call it with their tool names.
- * The gate auto-deactivates all registered tools on session_start so that web
- * tools start disabled until the user opts in with /web-on.
+ *
+ * The gate auto-deactivates all registered web tools on session_start so they
+ * start disabled until the user opts in with /web-on. The /web-on and /web-off
+ * commands are available for manual toggling.
+ *
+ * When pi is started with --web-on, the gate is bypassed: web tools are not
+ * auto-disabled on session_start and the globe icon shows in the status bar.
  *
  * Shared state lives on globalThis so multiple extension files can register
  * their tools without each other's module-level state.
@@ -52,6 +57,13 @@ export function registerWebGate(_pi: ExtensionAPI, toolName: string) {
 // ── extension entry ──
 
 export default function (pi: ExtensionAPI) {
+	// Register --web-on so pi recognizes it and appears in --help.
+	pi.registerFlag("web-on", {
+		description: "Start with all web tools enabled and bypass the web gate completely",
+		type: "boolean",
+		default: false,
+	});
+
 	const s = state();
 
 	// Register /web-on and /web-off on every load (handles /reload correctly)
@@ -85,10 +97,17 @@ export default function (pi: ExtensionAPI) {
 		},
 	});
 
-	// Auto-disable all gated tools on every session start
-	pi.on("session_start", () => {
-		const active = pi.getActiveTools();
-		const filtered = active.filter((n) => !s.toolNames.includes(n));
-		if (filtered.length < active.length) pi.setActiveTools(filtered);
+	// On session start: when --web-on is set, skip auto-disable so all web
+	// tools remain available; otherwise auto-disable all gated tools.
+	pi.on("session_start", (_event, ctx) => {
+		if (pi.getFlag("web-on")) {
+			// Bypass: just show the globe if any gated tools are active
+			refreshStatus(pi, ctx);
+		} else {
+			// Normal: auto-disable all gated tools
+			const active = pi.getActiveTools();
+			const filtered = active.filter((n) => !s.toolNames.includes(n));
+			if (filtered.length < active.length) pi.setActiveTools(filtered);
+		}
 	});
 }

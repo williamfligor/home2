@@ -10,6 +10,7 @@ __pycache__
 .pi/agent/npm
 .pi/agent/auth.json
 .pi/agent/private_auth.json
+.pi/agent/models-store.json
 .pi/agent/private_models-store.json
 .pi/agent/trust.json
 .pi/agent/pi-web/
