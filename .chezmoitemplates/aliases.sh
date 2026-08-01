@@ -43,3 +43,7 @@ alias czua="chezmoi update --apply"
 # ZMX
 alias zs='zmx-ssh'
 alias zl='zmx-local'
+
+# pi
+alias pino="pi --no-session"
+alias piw="pi --web-on"
