@@ -29,6 +29,7 @@ yq = "latest"
 "github:simeji/jid" = "latest"
 "github:tree-sitter/tree-sitter" = "latest"
 "npm:@earendil-works/pi-coding-agent" = "latest"
+"npm:@tobilu/qmd" = { version = "latest", npm_args = "--ignore-scripts=false" }
 
 # ── DevOps & Containers ──────────────────────────────────────
 dive = "latest"

@@ -16,11 +16,13 @@
   "packages": [
     "npm:@ff-labs/pi-fff",
     "npm:pi-markdown-preview",
+    "npm:pi-memory",
     "npm:pi-powerline-footer",
     "npm:pi-rewind",
     "npm:pi-smart-fetch",
     "npm:pi-subagents",
-    "npm:pi-vimmode"
+    "npm:pi-vimmode",
+    "npm:@sting8k/pi-vcc"
   ],
   "defaultThinkingLevel": "high",
   "hideThinkingBlock": true,
