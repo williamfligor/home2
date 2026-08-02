@@ -1,0 +1,19 @@
+# Root-level skill repo: the whole repo IS the skill.
+[".agents/skills/avoid-ai-writing"]
+type = "archive"
+url = "https://codeload.github.com/conorbronsdon/avoid-ai-writing/tar.gz/efc19575bab315e9bcc5f33d0435040c1a6022cd"
+stripComponents = 1
+refreshPeriod = "168h"
+exact = true
+
+# Subdirectory skill inside a multi-skill plugin repo (mattpocock/skills).
+# Archive + subtree-scoped include + strip to the skill's depth: files land at
+# the skill root, and any future files upstream adds under grill-me/ are picked
+# up automatically on ref bump (unlike per-file entries).
+[".agents/skills/grill-me"]
+type = "archive"
+url = "https://codeload.github.com/mattpocock/skills/tar.gz/2ab958093e83e0ec752e6c1c5932da465bf23e0c"
+stripComponents = 4
+include = ["**/grill-me/**"]
+refreshPeriod = "168h"
+exact = true
