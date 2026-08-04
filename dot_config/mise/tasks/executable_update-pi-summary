@@ -1,0 +1,302 @@
+#!/usr/bin/env bash
+#MISE description="Summarize pending pi extension updates"
+set -euo pipefail
+
+# Gather pending-update data with node (via stdin heredoc — no pi runtime needed).
+# Note: pi -p must be spawned from bash, not from node (node-parented pi hangs in
+# print mode for unknown reasons), so the node part only collects and prints data.
+DATA="$(node --input-type=module <<'NODE_EOF'
+import { execFile } from "node:child_process";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
+
+const AGENT_DIR = process.env.PI_AGENT_DIR ?? join(homedir(), ".pi", "agent");
+const NPM_TIMEOUT_MS = 90_000;
+const MAX_NOTES_CHARS = 3000;
+const MAX_DIFF_CHARS = 2500;
+const MAX_CHANGED_FILES = 30;
+const CHANGELOG_FILE_RE =
+  /^package\/(?:CHANGELOG|CHANGES|HISTORY|RELEASE_NOTES|RELEASES|NEWS)(?:\..+)?\.(?:md|markdown|txt)$/i;
+
+async function runCmd(cmd, cwd) {
+  const { stdout } = await execFileAsync(cmd[0], cmd.slice(1), {
+    cwd,
+    timeout: NPM_TIMEOUT_MS,
+    maxBuffer: 16 * 1024 * 1024,
+    env: { ...process.env },
+  });
+  return stdout;
+}
+
+function truncate(text, max) {
+  if (text.length <= max) return text;
+  return `${text.slice(0, max).trimEnd()}\n… (truncated)`;
+}
+
+function formatChangedFiles(files) {
+  if (files.length === 0) return "";
+  const shown = files.slice(0, MAX_CHANGED_FILES);
+  const suffix = files.length > MAX_CHANGED_FILES ? `, … +${files.length - MAX_CHANGED_FILES} more` : "";
+  return `Changed files: ${shown.join(", ")}${suffix}`;
+}
+
+/** Parse "npm:<name>[@version]" → { name, pinned } (scoped names supported). */
+function parseNpmSource(source) {
+  const m = source.match(/^npm:(@[^/]+\/)?([^@]+?)(@.+)?$/);
+  if (!m) return undefined;
+  return { name: `${m[1] ?? ""}${m[2]}`, pinned: Boolean(m[3]) };
+}
+
+async function readInstalledVersion(name) {
+  try {
+    const pkg = JSON.parse(await readFile(join(AGENT_DIR, "npm", "node_modules", name, "package.json"), "utf8"));
+    return typeof pkg.version === "string" ? pkg.version : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function getLatestVersion(name, npm) {
+  const out = await runCmd([...npm, "view", name, "version"], tmpdir());
+  const version = out.trim().split(/\s+/)[0];
+  if (!version || !/^\d+\.\d+\.\d+/.test(version)) throw new Error(`bad version from npm view: ${version}`);
+  return version;
+}
+
+async function getChangedFiles(name, oldV, newV, npm) {
+  const out = await runCmd(
+    [...npm, "diff", `--diff=${name}@${oldV}`, `--diff=${name}@${newV}`, "--diff-name-only"],
+    tmpdir(),
+  );
+  return out.split("\n").map((s) => s.trim()).filter(Boolean);
+}
+
+async function getDiffExcerpt(name, oldV, newV, npm) {
+  const out = await runCmd(
+    [...npm, "diff", `--diff=${name}@${oldV}`, `--diff=${name}@${newV}`, "--diff-unified=3"],
+    tmpdir(),
+  );
+  return truncate(out, MAX_DIFF_CHARS);
+}
+
+async function getRepositoryUrl(name, version, npm) {
+  try {
+    const out = await runCmd([...npm, "view", `${name}@${version}`, "repository.url"], tmpdir());
+    return out.trim().split(/\s+/)[0] || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function extractChangelogFromTarball(name, version, npm, workDir) {
+  try {
+    const packOut = await runCmd([...npm, "pack", `${name}@${version}`, "--silent", "--json"], workDir);
+    const lines = packOut.trim().split("\n").filter(Boolean);
+    const parsed = JSON.parse(lines[lines.length - 1]);
+    const filename = Array.isArray(parsed) ? parsed[0]?.filename : parsed.filename;
+    if (!filename) return undefined;
+    const tgz = join(workDir, filename);
+    const listing = await runCmd(["tar", "-tzf", tgz], workDir);
+    const entry = listing
+      .trim()
+      .split("\n")
+      .map((s) => s.trim())
+      .find((s) => CHANGELOG_FILE_RE.test(s));
+    if (!entry) return undefined;
+    const content = await runCmd(["tar", "-xOzf", tgz, entry], workDir);
+    return truncate(content, MAX_NOTES_CHARS);
+  } catch {
+    return undefined;
+  }
+}
+
+async function fetchGitHubReleaseNotes(repoUrl, version) {
+  if (!repoUrl) return undefined;
+  const match = repoUrl.match(/github\.com[:/]([^/]+)\/([^/.#]+)/i);
+  if (!match) return undefined;
+  const [, owner, repo] = match;
+  try {
+    const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases?per_page=10`, {
+      headers: { "User-Agent": "pi-update-summary", Accept: "application/vnd.github+json" },
+    });
+    if (!res.ok) return undefined;
+    const releases = await res.json();
+    const norm = (t) => t.replace(/^v/i, "").trim();
+    const release = releases.find((r) => r.tag_name && norm(r.tag_name) === norm(version));
+    if (!release?.body) return undefined;
+    return truncate(release.body, MAX_NOTES_CHARS);
+  } catch {
+    return undefined;
+  }
+}
+
+async function gatherNpmPackage(name, npm, workDir) {
+  const installedVersion = await readInstalledVersion(name);
+  if (!installedVersion) return undefined;
+  const latestVersion = await getLatestVersion(name, npm);
+  if (installedVersion === latestVersion) return undefined;
+
+  const [files, diff, changelog, repoUrl] = await Promise.all([
+    getChangedFiles(name, installedVersion, latestVersion, npm).catch(() => []),
+    getDiffExcerpt(name, installedVersion, latestVersion, npm).catch(() => ""),
+    extractChangelogFromTarball(name, latestVersion, npm, workDir),
+    getRepositoryUrl(name, latestVersion, npm),
+  ]);
+  const notes =
+    changelog ??
+    (await fetchGitHubReleaseNotes(repoUrl, latestVersion)) ??
+    (diff ? `Diff excerpt:\n${diff}` : "No change details available.");
+  return { name, installedVersion, latestVersion, changedFiles: files, notes };
+}
+
+async function gatherGitPackage(source) {
+  // git:host/path or git@host:path — basic fetch + commit log support.
+  const path = source.replace(/^git:/, "").replace(/^https?:\/\//, "");
+  const cloneDir = join(AGENT_DIR, "git", path.replace(/[:/]/g, "/"));
+  try {
+    await runCmd(["git", "-C", cloneDir, "fetch", "origin", "--quiet"], cloneDir);
+    const log = await runCmd(["git", "-C", cloneDir, "log", "--oneline", "HEAD..origin/HEAD"], cloneDir);
+    const commits = log.trim().split("\n").filter(Boolean).slice(0, 30);
+    if (commits.length === 0) return undefined;
+    return {
+      name: path,
+      installedVersion: "?",
+      latestVersion: "?",
+      changedFiles: [],
+      notes: commits.join("\n"),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+async function mapLimit(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await fn(items[index]);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+function buildDataBlock(updates) {
+  const blocks = updates.map((u) =>
+    [
+      `## ${u.name} (${u.installedVersion} → ${u.latestVersion})`,
+      formatChangedFiles(u.changedFiles),
+      u.notes ? `Notes:\n${u.notes}` : "Notes: (none available)",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+  );
+  return [
+    `Pending pi extension updates (${updates.length}):`,
+    "",
+    blocks.join("\n\n---\n\n"),
+  ].join("\n");
+}
+
+async function main() {
+  if (process.env.PI_OFFLINE) {
+    console.log("No pending pi extension updates.");
+    return 0;
+  }
+
+  let settings;
+  try {
+    settings = JSON.parse(await readFile(join(AGENT_DIR, "settings.json"), "utf8"));
+  } catch {
+    console.error("update-pi-summary: cannot read settings.json — skipping.");
+    return 0;
+  }
+
+  const npm = Array.isArray(settings.npmCommand) && settings.npmCommand.length > 0
+    ? settings.npmCommand
+    : ["npm"];
+
+  const pending = [];
+  for (const entry of settings.packages ?? []) {
+    const source = typeof entry === "string" ? entry : entry?.source;
+    if (typeof source !== "string") continue;
+    if (source.startsWith("npm:")) {
+      const parsed = parseNpmSource(source);
+      if (parsed && !parsed.pinned) pending.push({ kind: "npm", name: parsed.name });
+    } else if (source.startsWith("git:") || /^https?:\/\//.test(source)) {
+      pending.push({ kind: "git", source });
+    }
+  }
+
+  const workDir = await mkdtemp(join(tmpdir(), "pi-update-summary-"));
+  try {
+    const results = await mapLimit(pending, 3, async (p) => {
+      try {
+        return p.kind === "npm"
+          ? await gatherNpmPackage(p.name, npm, workDir)
+          : await gatherGitPackage(p.source);
+      } catch (error) {
+        return {
+          name: p.kind === "npm" ? p.name : p.source,
+          installedVersion: "?",
+          latestVersion: "?",
+          changedFiles: [],
+          notes: `Could not inspect: ${error instanceof Error ? error.message : String(error)}`,
+        };
+      }
+    });
+
+    const updates = results.filter(Boolean);
+    if (updates.length === 0) {
+      console.log("No pending pi extension updates.");
+      return 0;
+    }
+    console.log(buildDataBlock(updates));
+    return 0;
+  } finally {
+    await rm(workDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+main().catch((error) => {
+  console.error(`update-pi-summary: ${error instanceof Error ? error.message : String(error)}`);
+  process.exit(0);
+});
+NODE_EOF
+)" || DATA=""
+
+if [[ -z "$DATA" ]]; then
+  echo "update-pi-summary: could not gather update data." >&2
+  exit 0
+fi
+if [[ "$DATA" == "No pending pi extension updates." ]]; then
+  echo "$DATA"
+  exit 0
+fi
+
+# Raw mode: just print the gathered data (no LLM call).
+if [[ "${PI_UPDATE_SUMMARY_RAW:-}" == "1" ]]; then
+  echo "$DATA"
+  exit 0
+fi
+
+PROMPT="Analyze these pending pi extension updates:
+
+$DATA
+
+For each package: summarize what changed in 2-6 concise bullets (new features, fixes, behavior changes), and flag anything breaking or config/settings-related.
+Then give a one-line recommendation: update all, update some (which), or wait, with brief reasoning.
+Keep the response tight."
+
+# Ask a clean headless pi instance to analyze (no session, extensions, or tools).
+# Falls back to the raw data if pi fails (e.g. offline).
+if NO_COLOR=1 pi -p "$PROMPT" --no-session --no-extensions --no-tools 2>/dev/null; then
+  exit 0
+fi
+echo "$DATA"

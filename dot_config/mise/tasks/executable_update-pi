@@ -3,5 +3,7 @@
 set -euxo pipefail
 
 pi update
+# Show what is about to change before installing pending extension updates
+mise run update-pi-summary || true
 pi update --extensions
 bash "$HOME/.local/share/chezmoi/.chezmoiscripts/run_onchange_after_99-pi-extensions.sh"
