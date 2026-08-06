@@ -35,6 +35,11 @@ yq = "latest"
 dive = "latest"
 lazydocker = "latest"
 
+# ── Sandboxing ────────────────────────────────────────────────
+# Pinned deliberately until nono hits 1.0: tool-sandbox/network behaviour
+# changes between releases (v0.71: allow_all IPC crash, CONNECT 443-only).
+"github:nolabs-ai/nono" = "0.71.0"
+
 # ── Documentation & Writing ──────────────────────────────────
 pandoc = "latest"
 "github:charmbracelet/glow" = "latest"
