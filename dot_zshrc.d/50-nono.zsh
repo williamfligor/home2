@@ -8,6 +8,19 @@
 #
 # Non-interactive shells don't source this, so programmatic `pi` invocations
 # (scripts, crons) stay unwrapped — by design.
+#
+# Temporary grants & network toggles via NONO_* env vars — no wrapper change:
+#   NONO_ALLOW=/path              add a read+write dir (verified)
+#   NONO_BLOCK_NET=1              block all network
+#   NONO_NETWORK_PROFILE=<name>   proxy host-filter: developer/minimal/enterprise/...
+#   NONO_ALLOW_DOMAIN=<host>      extra proxy-allowlisted host(s)
+#   NONO_DENY_DOMAIN=<host>       proxy-blocked host(s)
+#   NONO_UPSTREAM_PROXY=<h:p>     enterprise proxy; NONO_UPSTREAM_BYPASS=<hosts>
+#   NONO_CREDENTIAL=<route>       activate a credential route (e.g. opencode-go)
+#   NONO_ENV_CREDENTIAL=...
+#   Note: there is NO NONO_READ env form — read-only grants need
+#   `command nono run --profile pi --read <path> -- pi`.
+# Usage: NONO_ALLOW=~/proj-x NONO_NETWORK_PROFILE=developer pi
 
 function pi() {
   local bin
