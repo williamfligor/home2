@@ -7,10 +7,5 @@
   },
   "groups": {
     "include": ["mise_manager", "linux_temp_read"]
-  },
-  "filesystem": {
-    "read_file": [
-      "$HOME/.config/gitignore"
-    ]
   }
 }
