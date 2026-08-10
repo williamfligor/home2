@@ -48,6 +48,18 @@
 # the worktree). Without this, git in a linked worktree fatals with
 # `not a git repository: <main>/.git/worktrees/<name>`. In a plain (non-linked)
 # repo this just widens the grant from the cwd to the whole repo toplevel.
+#
+# Project nono manifest (.pi/nono.json or .pi/nono.jsonc): a repo can declare
+# its own grants (extra paths/groups/network) and the wrapper uses the file
+# directly as the profile — nono takes `--profile <FILE>`, parses JSONC, and
+# resolves `extends`. Searched upward from cwd (stopping above $HOME).
+# Profile precedence:
+#   1. --nono-profile=<name or path>   explicit (highest)
+#   2. .pi/nono.json(.jsonc)          nearest, walking up from cwd
+#   3. "pi"                           built-in user profile (default)
+# Trust: `extends` can only name a profile already installed on this machine,
+# so a repo can only widen within profiles you've already trusted. Override a
+# repo manifest deliberately with `pi --nono-profile=pi ...`.
 
 function pi() {
   local bin
@@ -73,7 +85,7 @@ function pi() {
   # --nono-profile=<name> is intercepted (substitutes the default profile)
   # because nono rejects a duplicate --profile argument.
   local -a nono_flags=() pi_args=()
-  local nono_profile=pi a flag val
+  local nono_profile="" a flag val
 
   while (( $# )); do
     case "$1" in
@@ -109,6 +121,28 @@ function pi() {
         ;;
     esac
   done
+
+  # Project nono manifest: if the user didn't set --nono-profile=, search
+  # upward from cwd for .pi/nono.json(.jsonc) and use it directly — nono's
+  # `--profile <NAME_OR_PATH>` accepts a file path, parses JSONC natively, and
+  # resolves `extends` against installed profiles. A repo can thus declare its
+  # own grants (extra paths/groups/network) without a per-invocation flag.
+  # Trust: `extends` can only name profiles already installed on this
+  # machine, so a repo can't escalate beyond what the user has trusted.
+  if [[ -z "$nono_profile" ]]; then
+    local d="${PWD:A}" manifest=""
+    while [[ "$d" != "$HOME" && "$d" != "/" && -z "$manifest" ]]; do
+      if   [[ -f "$d/.pi/nono.json"  ]]; then manifest="$d/.pi/nono.json"
+      elif [[ -f "$d/.pi/nono.jsonc" ]]; then manifest="$d/.pi/nono.jsonc"; fi
+      d="${d:h}"
+    done
+    if [[ -n "$manifest" ]]; then
+      echo "pi: using project nono profile: $manifest" >&2
+      nono_profile="$manifest"
+    else
+      nono_profile=pi
+    fi
+  fi
 
   # Git worktree handling: when inside a git work tree, auto-grant the
   # worktree toplevel (r+w). For a *linked* worktree its git metadata lives
