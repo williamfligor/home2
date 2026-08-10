@@ -4,7 +4,12 @@
 # supervising parent, so you get the session summary, audit trail, and
 # detach/attach — for scripts/pipes use `command nono wrap` directly).
 #   - --allow-cwd        shares the working directory (skips the cwd prompt)
-#   - --no-diagnostics   suppresses the post-run denial footer + whitelist prompt
+#   - diagnostics ON    the failure footer shows by default (denials + `nono why`
+#                        hints). No save/profile-change prompt: the pi profile
+#                        uses Landlock, which denies silently at the syscall
+#                        level, so nono has nothing observable to prompt about —
+#                        that prompt only exists in capability_elevation mode.
+#                        Opt out per run with `--nono-no-diagnostics`.
 #   - recursion guard:   already inside a nono sandbox (NONO_CAP_FILE set) →
 #                        run the binary directly, don't re-wrap
 #
@@ -35,7 +40,7 @@
 # Repeatable; unknown --nono-<flag> is passed through verbatim, nono validates.
 # `--nono-profile=<name>` is intercepted (not appended): nono rejects a
 # duplicate --profile, so it overrides the wrapper's default profile instead.
-# (--nono-allow-cwd / --nono-no-diagnostics are not honored: always on.)
+# (--nono-allow-cwd is not honored: always on.)
 
 function pi() {
   local bin
@@ -98,6 +103,6 @@ function pi() {
     esac
   done
 
-  command nono run --profile "$nono_profile" --allow-cwd --no-diagnostics \
+  command nono run --profile "$nono_profile" --allow-cwd \
     "${nono_flags[@]}" -- "$bin" "${pi_args[@]}"
 }
