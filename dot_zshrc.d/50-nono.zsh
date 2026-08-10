@@ -41,6 +41,13 @@
 # `--nono-profile=<name>` is intercepted (not appended): nono rejects a
 # duplicate --profile, so it overrides the wrapper's default profile instead.
 # (--nono-allow-cwd is not honored: always on.)
+#
+# Git worktree auto-grant: when launched inside a git work tree, the wrapper
+# auto-grants the worktree toplevel (r+w) and, for a *linked* worktree, the
+# main repo's .git (the "common dir" — shared objects/refs that live outside
+# the worktree). Without this, git in a linked worktree fatals with
+# `not a git repository: <main>/.git/worktrees/<name>`. In a plain (non-linked)
+# repo this just widens the grant from the cwd to the whole repo toplevel.
 
 function pi() {
   local bin
@@ -95,7 +102,7 @@ function pi() {
         shift
         ;;
       --)
-        pi_args+=("$@"); shift; break
+        shift; pi_args+=("$@"); break
         ;;
       *)
         pi_args+=("$1"); shift
@@ -103,6 +110,23 @@ function pi() {
     esac
   done
 
-  command nono run --profile "$nono_profile" --allow-cwd \
+  # Git worktree handling: when inside a git work tree, auto-grant the
+  # worktree toplevel (r+w). For a *linked* worktree its git metadata lives
+  # in the main repo's .git (the "common dir"), OUTSIDE the worktree cwd —
+  # without that grant git fatals with `not a git repository`. Grant it too.
+  # ($top/.git is covered by the $top grant, so the common-dir grant is only
+  # needed when common != top/.git, i.e. a linked worktree.)
+  local -a wt_flags=()
+  local top common
+  if git rev-parse --is-inside-work-tree &>/dev/null; then
+    top="$(git rev-parse --show-toplevel 2>/dev/null)"
+    [[ -n "$top" ]] && wt_flags+=(--allow "${top:A}")
+    common="$(git rev-parse --git-common-dir 2>/dev/null)"
+    if [[ -n "$common" && -d "$common" && "${common:A}" != "${top:A}/.git" ]]; then
+      wt_flags+=(--allow "${common:A}")
+    fi
+  fi
+
+  command nono run --profile "$nono_profile" --allow-cwd "${wt_flags[@]}" \
     "${nono_flags[@]}" -- "$bin" "${pi_args[@]}"
 }
