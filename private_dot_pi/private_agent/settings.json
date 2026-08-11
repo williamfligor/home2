@@ -15,14 +15,15 @@
   "lastChangelogVersion": "1.0.0",
   "packages": [
     "npm:@ff-labs/pi-fff",
-    "npm:pi-markdown-preview",
-    "npm:pi-memory",
+    "npm:@howaboua/pi-skill-anti-ai-copy",
     "npm:pi-powerline-footer",
     "npm:pi-rewind",
     "npm:pi-smart-fetch",
     "npm:pi-subagents",
     "npm:pi-vimmode",
-    "npm:@sting8k/pi-vcc"
+    {
+      "source": "~/.config/nono/packages/nolabs-ai/pi"
+    }
   ],
   "defaultThinkingLevel": "high",
   "hideThinkingBlock": true,
@@ -58,5 +59,6 @@
         "extension_statuses"
       ]
     }
-  }
+  },
+  "tuiMode": "fullscreen"
 }
