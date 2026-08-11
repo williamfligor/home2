@@ -6,6 +6,14 @@ stripComponents = 1
 refreshPeriod = "168h"
 exact = true
 
+# Root-level skill repo: the whole repo IS the skill.
+[".agents/skills/humanizer"]
+type = "archive"
+url = "https://codeload.github.com/blader/humanizer/tar.gz/523374dee72d67c7b2b5f858ea0094ffda49c3ac"
+stripComponents = 1
+refreshPeriod = "168h"
+exact = true
+
 # Subdirectory skill inside a multi-skill plugin repo (mattpocock/skills).
 # Archive + subtree-scoped include + strip to the skill's depth: files land at
 # the skill root, and any future files upstream adds under grill-me/ are picked
