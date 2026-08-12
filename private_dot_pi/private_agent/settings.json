@@ -27,16 +27,6 @@
   ],
   "defaultThinkingLevel": "high",
   "hideThinkingBlock": true,
-  "subagents": {
-    "agentOverrides": {
-      "context-builder": {},
-      "planner": {},
-      "researcher": {},
-      "reviewer": {},
-      "scout": {},
-      "worker": {}
-    }
-  },
   "enabledModels": [
     "opencode-go/*",
     "llama-cpp/*"
@@ -60,5 +50,6 @@
       ]
     }
   },
-  "tuiMode": "fullscreen"
+  "showHardwareCursor": true,
+  "tuiMode": "regular"
 }

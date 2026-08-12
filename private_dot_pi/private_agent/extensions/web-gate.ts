@@ -115,6 +115,14 @@ export default function (pi: ExtensionAPI) {
 	const s = state();
 	const isSubagent = process.env.PI_SUBAGENT_CHILD === "1";
 
+	// Defensively gate web tools provided by packages that do not know about
+	// the gate. pi-web-access (npm) provides the researcher builtin's
+	// fetch_content / get_search_content; register them here so a future
+	// install stays gated. Unknown names are no-ops (the gate only strips
+	// tools that are actually active).
+	registerWebGate(pi, "fetch_content");
+	registerWebGate(pi, "get_search_content");
+
 	// Derive the user's intent for this process. In the main process only the
 	// CLI flag counts — any PI_WEB_ON left over from an earlier session in the
 	// same process is stale and is ignored. In a subagent, the env var is the
