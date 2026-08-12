@@ -47,6 +47,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { createWriteStream, type WriteStream } from "node:fs";
 import { mkdirSync, statSync } from "node:fs";
 import { randomBytes } from "node:crypto";
+import { EventEmitter } from "node:events";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -58,6 +59,7 @@ const POLL_INTERVAL_MS = 250; // live-output poll interval
 const OUTPUT_PREVIEW_CHARS = 20_000; // how much we tail into the model result / UI
 const MAX_LOG_BYTES = Number(process.env.PI_BG_MAX_LOG_MB ?? 50) * 1024 * 1024; // tail-rotate cap per job
 const LOG_DIR = join(tmpdir(), "pi-bg-bash");
+const SHUTDOWN_GRACE_MS = 3_000; // SIGTERM → SIGKILL escalation window at session shutdown
 
 // We register a fresh `bash` tool (same name -> overwrites the built-in via
 // agent-session _refreshToolRegistry Map.set). We deliberately OMIT
@@ -95,6 +97,13 @@ type JobsParams = Static<typeof jobsSchema>;
 
 type JobStatus = "running" | "completed" | "failed" | "killed";
 
+/** What a job's process ended with; `spawnError` is set when bash never exec'd. */
+interface ExitResult {
+  code: number | null;
+  signal: NodeJS.Signals | null;
+  spawnError?: Error;
+}
+
 interface Job {
   id: string;
   name?: string;
@@ -108,7 +117,7 @@ interface Job {
   endedAt?: number;
   isBackground: boolean;
   outputConsumed: boolean; // suppress redundant completion notice if already read
-  exit: Promise<{ code: number | null; signal: NodeJS.Signals | null }>;
+  exit: Promise<ExitResult>;
 }
 
 interface ForegroundSlot {
@@ -130,7 +139,7 @@ const reg: Registry = { jobs: new Map(), foreground: new Map() };
 // bounded at ~MAX_LOG_BYTES; the model only ever reads a short tail. The
 // process is never killed for being chatty.
 
-class PumpLog {
+class PumpLog extends EventEmitter {
   readonly path: string;
   private readonly cap: number;
   private stream: WriteStream;
@@ -138,6 +147,7 @@ class PumpLog {
   private rotating = false;
 
   constructor(path: string, cap: number) {
+    super();
     this.path = path;
     this.cap = cap;
     mkdirSync(dirname(path), { recursive: true });
@@ -145,32 +155,68 @@ class PumpLog {
     this.stream.on("error", () => {
       /* best-effort; log failures must not crash the extension */
     });
+    // Re-emit the current stream's drain so spawnPiped can resume a paused
+    // producer when the writable has room again (backpressure bridge).
+    this.stream.on("drain", () => this.emit("drain"));
   }
 
-  write(chunk: Buffer): void {
-    if (this.rotating) return; // drop briefly during the truncate window (rare, bounded)
+  /** Returns the writable's backpressure signal; `false` means "pause the producer". */
+  write(chunk: Buffer): boolean {
+    if (this.rotating) return true; // dropping during the truncate window; don't stall the producer
+    if (this.stream.destroyed) {
+      // Underlying stream died (e.g. disk error mid-flush). Reopen fresh so we
+      // keep writing what we can rather than stalling or dropping forever.
+      this.reopen();
+      this.emit("drain"); // unblock a producer paused by the dead stream
+    }
+    let ok = true;
     try {
-      this.stream.write(chunk);
+      ok = this.stream.write(chunk);
     } catch {
-      /* stream closed underneath us */
+      /* stream closed underneath us; drop without stalling */
     }
     this.bytesThisFile += chunk.length;
     if (this.bytesThisFile >= this.cap) this.rotate();
+    return ok;
+  }
+
+  private reopen(): void {
+    try {
+      this.stream = createWriteStream(this.path);
+    } catch {
+      return;
+    }
+    this.stream.on("error", () => {});
+    this.stream.on("drain", () => this.emit("drain"));
+    this.bytesThisFile = 0;
+    this.rotating = false;
   }
 
   private rotate(): void {
     if (this.rotating) return;
+    if (this.stream.destroyed) {
+      // Stream already dead; nothing left to flush — swap immediately instead
+      // of waiting for a finish/error event that will never fire.
+      this.reopen();
+      this.emit("drain");
+      return;
+    }
     this.rotating = true;
     const old = this.stream;
     // 'w' truncates on open. End the old stream, then reopen the same path
     // once it has fully flushed. Path stays constant so readers always hit the
-    // live segment.
-    old.end(() => {
-      this.stream = createWriteStream(this.path);
-      this.stream.on("error", () => {});
-      this.bytesThisFile = 0;
-      this.rotating = false;
-    });
+    // live segment. Both `finish` and `error` reset the pump — a stream that
+    // errors mid-flush (e.g. disk full) must not leave `rotating` stuck true,
+    // which would silently drop every subsequent chunk for the job's life.
+    const onOldDone = () => {
+      old.removeListener("finish", onOldDone);
+      old.removeListener("error", onOldDone);
+      this.reopen();
+      this.emit("drain"); // fresh empty stream: unblock any paused producer
+    };
+    old.once("finish", onOldDone);
+    old.once("error", onOldDone);
+    old.end();
   }
 
   close(): void {
@@ -215,11 +261,21 @@ function spawnPiped(args: {
     log.close();
     throw new Error(`Failed to spawn bash: ${args.command}`);
   }
-  child.stdout?.on("data", (d: Buffer) => log.write(d));
-  child.stderr?.on("data", (d: Buffer) => log.write(d));
+  child.stdout?.on("data", (d: Buffer) => {
+    if (!log.write(d)) {
+      child.stdout?.pause();
+      log.once("drain", () => child.stdout?.resume());
+    }
+  });
+  child.stderr?.on("data", (d: Buffer) => {
+    if (!log.write(d)) {
+      child.stderr?.pause();
+      log.once("drain", () => child.stderr?.resume());
+    }
+  });
 
-  const exit = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
-    child.on("error", () => resolve({ code: null, signal: null }));
+  const exit = new Promise<ExitResult>((resolve) => {
+    child.on("error", (err: Error) => resolve({ code: null, signal: null, spawnError: err }));
     child.on("close", (code, signal) => {
       // Best-effort: reap any stragglers in the group if killed by signal.
       if (signal && child.pid) {
@@ -368,8 +424,13 @@ function startBackgroundWatcher(args: { job: Job; ctx: ExtensionContext; pi: Ext
     if (args.job.outputConsumed) return; // the agent already read the output; don't notify (the #18544 notification-wall guard)
 
     const tail = readTail(args.job.logPath);
-    const exitLine =
-      r.code === null ? (r.signal ? `killed (signal ${r.signal})` : "killed") : `exit ${r.code}`;
+    const exitLine = r.spawnError
+      ? `spawn error: ${r.spawnError.message}`
+      : r.code === null
+        ? r.signal
+          ? `killed (signal ${r.signal})`
+          : "killed"
+        : `exit ${r.code}`;
     const msg =
       `Background job ${args.job.id} ${args.job.status} (${exitLine}) after ${formatDuration(
         args.job.endedAt - args.job.startedAt,
@@ -538,10 +599,12 @@ async function runForeground(args: {
     if (signal) signal.removeEventListener("abort", onAbort);
   };
 
-  const finishForeground = (r: { code: number | null; signal: NodeJS.Signals | null }, output: string) => {
+  const finishForeground = (r: ExitResult, output: string) => {
+    // A spawn error (bash never exec'd) is a tool error, not a clean result.
     // Any non-zero foreground exit is a tool error (a script can `exit 137`;
     // we don't guess signal deaths from the 128+signum convention). Signal
     // death (code null) — e.g. an Esc cancel — returns the partial output.
+    if (r.spawnError) throw new Error(`Failed to spawn bash: ${r.spawnError.message}`);
     if (r.code !== null && r.code !== 0) throw new Error(output || `Command exited with code ${r.code}`);
     return { content: [text(output || "(no output)")], details: undefined };
   };
@@ -568,12 +631,8 @@ async function runForeground(args: {
     // background request that arrives during the quick window is honored
     // immediately (matters when `timeout` is set below QUICK_COMPLETION_MS —
     // the §12.4 latent bug).
-    const quick = await Promise.race<
-      | { kind: "completed"; code: number | null; signal: NodeJS.Signals | null }
-      | null
-      | "paused"
-    >([
-      exit.then((r) => ({ kind: "completed" as const, code: r.code, signal: r.signal })),
+    const quick = await Promise.race<{ kind: "completed"; r: ExitResult } | null | "paused">([
+      exit.then((r) => ({ kind: "completed" as const, r })),
       new Promise<null>((r) => {
         const t = setTimeout(() => r(null), QUICK_COMPLETION_MS);
         t.unref();
@@ -584,7 +643,7 @@ async function runForeground(args: {
       // Finished fast: read the output BEFORE unlinking the log (order matters).
       const output = readTail(log.path);
       reapForegroundJob();
-      return finishForeground(quick, output);
+      return finishForeground(quick.r, output);
     }
 
     // Still running past the quick window: stream live output + show the hint.
@@ -594,10 +653,10 @@ async function runForeground(args: {
 
     // Race: natural completion vs backgrounding (manual or timeout).
     const race = await Promise.race<
-      | { kind: "completed"; code: number | null; signal: NodeJS.Signals | null }
+      | { kind: "completed"; r: ExitResult }
       | { kind: "backgrounded"; reason: "manual" | "timeout" }
     >([
-      exit.then((r) => ({ kind: "completed" as const, code: r.code, signal: r.signal })),
+      exit.then((r) => ({ kind: "completed" as const, r })),
       pausePromise.then((reason) => ({ kind: "backgrounded" as const, reason })),
     ]);
 
@@ -617,7 +676,7 @@ async function runForeground(args: {
     // Completed in the foreground (past the quick window): read output, then drop the job + log.
     const output = readTail(log.path);
     reapForegroundJob();
-    return finishForeground(race, output);
+    return finishForeground(race.r, output);
   } finally {
     cleanup();
     if (hintShown) clearHint(ctx);
@@ -780,12 +839,25 @@ function registerLifecycle(pi: ExtensionAPI): void {
     // files so $TMPDIR/pi-bg-bash doesn't accumulate across sessions.
     for (const job of reg.jobs.values()) {
       if (job.status === "running") {
+        job.outputConsumed = true; // suppress a teardown notification
+        const pid = job.pid;
         try {
-          job.outputConsumed = true; // suppress a teardown notification
-          killProcessTree(job.pid, "SIGTERM");
+          killProcessTree(pid, "SIGTERM");
         } catch {
           /* ignore */
         }
+        // Escalate to SIGKILL after a short grace so a job that traps/ignores
+        // SIGTERM (e.g. a dev server doing graceful shutdown) can't outlive
+        // the session as a detached orphan. unref'd: fires as long as the loop
+        // is still alive (TUI case); well-behaved TERM'd jobs are already gone.
+        const escalate = setTimeout(() => {
+          try {
+            killProcessTree(pid, "SIGKILL");
+          } catch {
+            /* already dead */
+          }
+        }, SHUTDOWN_GRACE_MS);
+        escalate.unref();
       }
       try {
         job.log.close();

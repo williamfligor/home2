@@ -18,7 +18,7 @@
  *   cd eval && npm install && PI_PROVIDER=opencode-go PI_MODEL=deepseek-v4-flash npx vitest run
  *   (provider/model also read from the environment)
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -50,7 +50,7 @@ function findPiInstall(): string {
   } catch {}
   const fallback =
     "/home/will/.local/share/mise/installs/npm-earendil-works-pi-coding-agent/0.80.3/lib/node_modules/@earendil-works/pi-coding-agent";
-  if (require("node:fs").existsSync(fallback)) return fallback;
+  if (existsSync(fallback)) return fallback;
   throw new Error("Could not locate the pi install. Set PI_INSTALL to the pi-coding-agent package dir.");
 }
 

@@ -280,6 +280,30 @@ await sleep(200);
 const notes = pi.sent.filter((s) => s.m?.customType === "bg-job-finished").slice(-2).map((s) => /^Background job .* (?:after \S+)/.exec(s.m.content)?.[0]);
 check("failed/killed notifications carry honest exit lines", notes.length === 2 && notes.some((n) => /failed \(exit 137\)/.test(n)) && notes.some((n) => /killed \(killed/.test(n)), JSON.stringify(notes));
 
+// ---- findings fixes: BG-20 shutdown escalation + BG-21 spawn-failure honesty ----
+
+// 20. shutdown escalates TERM -> KILL for a job that traps SIGTERM
+const r20 = await bash.execute("t20", { command: "trap '' TERM; sleep 60", run_in_background: true }, undefined, undefined, ctx);
+const id20 = idOf(r20);
+await sleep(500);
+const l20 = (await jobs.execute("t20l", { action: "list" }, undefined, undefined, ctx)).content[0].text;
+const pid20 = parseInt((l20.split("\n").find((l) => l.includes(id20)) || "").match(/pid=(\d+)/)?.[1] || "0", 10);
+check("BG-20 TERM-trapping job exposes its leader pid", pid20 > 0, `pid=${pid20}`);
+for (const h of (pi.handlers.session_shutdown || [])) {
+  try { h({ type: "session_shutdown", reason: "quit" }); } catch (e) { check("BG-20 shutdown handler runs clean", false, String(e)); }
+}
+// SIGTERM is trapped; only the 3s SIGKILL escalation can reap the group
+await sleep(4000);
+check("BG-20 shutdown SIGKILL escalation reaps the TERM-trapping job", sh(`ps -p ${pid20} -o pid=`).trim().length === 0, `pid=${pid20} still alive`);
+
+// 21. a spawn failure surfaces as a tool error, never "(no output)" success
+const savedPath = process.env.PATH;
+process.env.PATH = "";
+let err21 = null;
+try { await bash.execute("t21", { command: "echo hi" }, undefined, undefined, ctx); } catch (e) { err21 = e.message; }
+process.env.PATH = savedPath;
+check("BG-21 missing shell throws 'Failed to spawn bash' (no silent success)", !!err21 && /Failed to spawn bash/.test(err21), err21 || "(no error thrown)");
+
 // fire session_shutdown, assert it sweeps
 let shutdownOk = true;
 for (const h of (pi.handlers.session_shutdown || [])) {
