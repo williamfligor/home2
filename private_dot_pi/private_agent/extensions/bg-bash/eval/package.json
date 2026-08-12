@@ -1,0 +1,11 @@
+{
+  "name": "bg-bash-eval",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "eval": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.0"
+  }
+}
