@@ -39,9 +39,8 @@
  * Design + survey: BACKGROUND.md. Test suite: TESTCASES.md.
  */
 
-import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
-import type { KeyId, Text as TextComponent } from "@earendil-works/pi-tui";
-import { Text } from "@earendil-works/pi-tui";
+import { createBashToolDefinition, type AgentToolResult, type AgentToolUpdateCallback, type ExtensionAPI, type ExtensionContext, type Theme, type ToolDefinition, type ToolRenderResultOptions } from "@earendil-works/pi-coding-agent";
+import { Container, Text, type Component, type KeyId, type Text as TextComponent } from "@earendil-works/pi-tui";
 import { Type, type Static } from "typebox";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createWriteStream, type WriteStream } from "node:fs";
@@ -92,6 +91,16 @@ const jobsSchema = Type.Object({
   maxBytes: Type.Optional(Type.Number({ description: "Max bytes to tail for output (default 20000)." })),
 });
 type JobsParams = Static<typeof jobsSchema>;
+
+/** Renderer metadata attached to bash results. `backgrounded` marks a handoff
+ * to a background job so the custom renderResult can draw a distinct box. */
+interface BgBashDetails {
+  backgrounded?: boolean;
+  jobId?: string;
+  pid?: number;
+  logPath?: string;
+  reason?: "spawned" | "timeout" | "manual";
+}
 
 // ---------- runtime state ----------
 
@@ -385,7 +394,7 @@ function clearHint(ctx: ExtensionContext): void {
 /** Poll the log and push growing tails as partial tool results (live output box). */
 function streamLog(
   logPath: string,
-  onUpdate: ((p: { content: { type: "text"; text: string }[]; details: undefined }) => void) | undefined,
+  onUpdate: AgentToolUpdateCallback<BgBashDetails | undefined> | undefined,
 ): { stop: () => void } {
   let size = 0;
   let stopped = false;
@@ -455,7 +464,64 @@ function startBackgroundWatcher(args: { job: Job; ctx: ExtensionContext; pi: Ext
 
 // ---------- the bash tool ----------
 
-function makeBashTool(_pi: ExtensionAPI): ToolDefinition<typeof bashSchema, undefined> {
+// Background-handoff result box. Replaces the stock "Took 0.0s" footer (a tool
+// call that returns in ~0ms next to a long-running command) with a clear status
+// line. Only the handoff path uses custom rendering; every other result
+// delegates to the stock bash renderer untouched.
+const BG_PREVIEW_LINES = 10;
+
+/** Minimal slice of ToolRenderContext the background box needs. */
+type BgRenderContext = {
+  state: Record<string, unknown>;
+  lastComponent: Component | undefined;
+  invalidate: () => void;
+};
+
+function renderBackgroundResult(
+  result: AgentToolResult<BgBashDetails | undefined>,
+  options: ToolRenderResultOptions,
+  theme: Theme,
+  context: BgRenderContext,
+): Component {
+  const d = result.details;
+  // Stop the stock renderer's 1s "Elapsed" re-render interval, which it started
+  // during the foreground streaming phase of an auto-backgrounded command.
+  const state = context.state as { interval?: ReturnType<typeof setInterval> };
+  if (state.interval) {
+    clearInterval(state.interval);
+    state.interval = undefined;
+  }
+  const component = context.lastComponent instanceof Container ? context.lastComponent : new Container();
+  component.clear();
+  const output = (result.content ?? [])
+    .map((c) => ("text" in c ? c.text : ""))
+    .join("\n")
+    .trim();
+  const lines = output.split("\n");
+  if (output) {
+    const preview = !options.expanded && lines.length > BG_PREVIEW_LINES;
+    const shown = preview
+      ? `${theme.fg("muted", `… (${lines.length - BG_PREVIEW_LINES} earlier lines — press [enter] to expand)`)}\n${theme.fg("toolOutput", lines.slice(-BG_PREVIEW_LINES).join("\n"))}`
+      : theme.fg("toolOutput", output);
+    component.addChild(new Text(`\n${shown}`, 0, 0));
+  }
+  const verb =
+    d?.reason === "timeout"
+      ? "Auto-backgrounded"
+      : d?.reason === "manual"
+        ? "Backgrounded"
+        : "Running in background";
+  component.addChild(new Text(`\n${theme.fg("toolTitle", `▶ ${verb} — job ${d?.jobId ?? "?"} (pid ${d?.pid ?? "?"})`)}`, 0, 0));
+  component.addChild(new Text(`\n${theme.fg("muted", `Output: ${d?.logPath ?? ""}`)}`, 0, 0));
+  component.invalidate();
+  return component;
+}
+
+function makeBashTool(_pi: ExtensionAPI): ToolDefinition<typeof bashSchema, BgBashDetails | undefined> {
+  // Stock bash renderer, wrapped: normal results keep the exact stock rendering
+  // (chip + streaming box + real "Took" duration); handoff results get the
+  // distinct background box above instead of a misleading "Took 0.0s".
+  const stockBash = createBashToolDefinition(process.cwd());
   return {
     name: "bash",
     label: "bash",
@@ -486,6 +552,21 @@ function makeBashTool(_pi: ExtensionAPI): ToolDefinition<typeof bashSchema, unde
         pi: _pi,
       });
     },
+
+    renderResult(result, options, theme, context) {
+      if (result.details?.backgrounded && !options.isPartial) {
+        return renderBackgroundResult(result, options, theme, context);
+      }
+      const stockRender = stockBash.renderResult;
+      if (stockRender) {
+        // The stock bash renderer is typed against its own details type; ours is
+        // runtime-compatible (stock only reads truncation/fullOutputPath, which we
+        // never set — non-background results carry `details: undefined`).
+        return stockRender(result as never, options, theme, context);
+      }
+      // Safety net: no stock renderer available.
+      return new Text((result.content ?? []).map((c) => ("text" in c ? c.text : "")).join("\n"), 0, 0);
+    },
   };
 }
 
@@ -495,7 +576,7 @@ function spawnBackground(args: {
   name?: string;
   ctx: ExtensionContext;
   pi: ExtensionAPI;
-}) {
+}): AgentToolResult<BgBashDetails | undefined> {
   const id = nextJobId();
   const { pid, log, exit, child } = spawnPiped({ command: args.command, cwd: args.ctx.cwd, id, cap: MAX_LOG_BYTES });
   child.unref(); // run_in_background: spawned straight to background
@@ -522,7 +603,7 @@ function spawnBackground(args: {
         `Command running in background with ID: ${id}.${args.name ? ` Name: ${args.name}.` : ""}\nOutput is being written to: ${log.path}`,
       ),
     ],
-    details: undefined,
+    details: { backgrounded: true, jobId: id, pid, logPath: log.path, reason: "spawned" },
   };
 }
 
@@ -531,10 +612,10 @@ async function runForeground(args: {
   command: string;
   timeoutMs: number;
   signal: AbortSignal | undefined;
-  onUpdate: ((p: { content: { type: "text"; text: string }[]; details: undefined }) => void) | undefined;
+  onUpdate: AgentToolUpdateCallback<BgBashDetails | undefined> | undefined;
   ctx: ExtensionContext;
   pi: ExtensionAPI;
-}) {
+}): Promise<AgentToolResult<BgBashDetails | undefined>> {
   const { toolCallId, command, timeoutMs, signal, onUpdate, ctx, pi } = args;
   const id = nextJobId();
 
@@ -670,7 +751,7 @@ async function runForeground(args: {
         content: [
           text(`Process backgrounded as ${id}${suffix}\nCommand: ${command}\nPID: ${pid}\nOutput: ${log.path}`),
         ],
-        details: undefined,
+        details: { backgrounded: true, jobId: id, pid, logPath: log.path, reason: race.reason },
       };
     }
     // Completed in the foreground (past the quick window): read output, then drop the job + log.

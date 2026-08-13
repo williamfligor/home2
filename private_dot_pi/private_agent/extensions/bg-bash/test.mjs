@@ -109,6 +109,7 @@ const idOf = (r) => r.content[0].text.match(/(b[0-9a-f]{8})/)[1];
 const r1 = await bash.execute("t1", { command: "sleep 1; echo done-bg", run_in_background: true }, undefined, undefined, ctx);
 check("run_in_background returns id+log path", /running in background with ID: b[0-9a-f]{8}/.test(r1.content[0].text) && /Output is being written to:/.test(r1.content[0].text));
 const id1 = idOf(r1);
+check("run_in_background marks details.backgrounded (jobId/pid/logPath/reason)", r1.details?.backgrounded === true && /^b[0-9a-f]{8}$/.test(r1.details?.jobId ?? "") && typeof r1.details?.pid === "number" && /\.log$/.test(r1.details?.logPath ?? "") && r1.details?.reason === "spawned", JSON.stringify(r1.details));
 
 // 2. jobs list shows [running]
 const r2 = await jobs.execute("t2", { action: "list" }, undefined, undefined, ctx);
@@ -117,6 +118,7 @@ check("jobs list shows the bg job [running]", r2.content[0].text.includes(`${id1
 // 3. fast foreground returns output, zero residue (the unlink-before-read bug)
 const r3 = await bash.execute("t3", { command: "echo hi" }, undefined, undefined, ctx);
 check("fast foreground returns output (not '(no output)')", r3.content[0].text.trim() === "hi", JSON.stringify(r3.content[0].text));
+check("foreground result carries no backgrounded marker", !r3.details?.backgrounded, JSON.stringify(r3.details));
 const r3b = await jobs.execute("t3b", { action: "list" }, undefined, undefined, ctx);
 check("fast fg leaves no residue (no 'hi' job)", !r3b.content[0].text.includes("echo hi"));
 
@@ -155,6 +157,7 @@ const dt = Date.now() - t0;
 check("auto-bg at timeout:1 returns at ~1000ms (the §12.4 fix)", dt > 700 && dt < 1500, `dt=${dt}ms`);
 check("auto-bg result phrasing: 'Process backgrounded as <id> (auto-backgrounded after 1s; …)'", /Process backgrounded as b[0-9a-f]{8} \(auto-backgrounded after 1s;/.test(r7.content[0].text));
 const id7 = idOf(r7);
+check("auto-background marks details.backgrounded reason=timeout", r7.details?.backgrounded === true && r7.details?.reason === "timeout" && r7.details?.jobId === id7, JSON.stringify(r7.details));
 await jobs.execute("t7k", { action: "kill", id: id7 }, undefined, undefined, ctx).catch(() => {});
 await sleep(400);
 
@@ -281,7 +284,6 @@ const notes = pi.sent.filter((s) => s.m?.customType === "bg-job-finished").slice
 check("failed/killed notifications carry honest exit lines", notes.length === 2 && notes.some((n) => /failed \(exit 137\)/.test(n)) && notes.some((n) => /killed \(killed/.test(n)), JSON.stringify(notes));
 
 // ---- findings fixes: BG-20 shutdown escalation + BG-21 spawn-failure honesty ----
-
 // 20. shutdown escalates TERM -> KILL for a job that traps SIGTERM
 const r20 = await bash.execute("t20", { command: "trap '' TERM; sleep 60", run_in_background: true }, undefined, undefined, ctx);
 const id20 = idOf(r20);
@@ -303,6 +305,27 @@ let err21 = null;
 try { await bash.execute("t21", { command: "echo hi" }, undefined, undefined, ctx); } catch (e) { err21 = e.message; }
 process.env.PATH = savedPath;
 check("BG-21 missing shell throws 'Failed to spawn bash' (no silent success)", !!err21 && /Failed to spawn bash/.test(err21), err21 || "(no error thrown)");
+
+// 22. background-handoff renderer: distinct box with job status, no "Took" line
+const fakeTheme = { fg: (c, s) => `[${c}]${s}[/${c}]` };
+const fakeContext = (lastComponent) => ({ state: {}, lastComponent, invalidate() {} });
+const bgBox = bash.renderResult(
+  { content: [{ type: "text", text: "tick-1\ntick-2" }], details: { backgrounded: true, jobId: "b12345678", pid: 42, logPath: "/tmp/pi-bg-bash/b12345678.log", reason: "spawned" } },
+  { isPartial: false, expanded: false },
+  fakeTheme,
+  fakeContext(undefined),
+);
+const bgText = bgBox.render(80).join("\n");
+check("bg renderResult draws 'Running in background' + job id + log path", bgText.includes("Running in background") && bgText.includes("b12345678") && bgText.includes("/tmp/pi-bg-bash/b12345678.log"), bgText.replace(/\n/g, "⏎"));
+check("bg renderResult has no 'Took' duration line", !bgText.includes("Took"), "");
+const abBox = bash.renderResult(
+  { content: [{ type: "text", text: "tick-1" }], details: { backgrounded: true, jobId: "b87654321", pid: 43, logPath: "/tmp/x.log", reason: "timeout" } },
+  { isPartial: false, expanded: false },
+  fakeTheme,
+  fakeContext(undefined),
+);
+const abText = abBox.render(80).join("\n");
+check("auto-background renderResult says 'Auto-backgrounded'", abText.includes("Auto-backgrounded") && abText.includes("b87654321"), abText.replace(/\n/g, "⏎"));
 
 // fire session_shutdown, assert it sweeps
 let shutdownOk = true;
