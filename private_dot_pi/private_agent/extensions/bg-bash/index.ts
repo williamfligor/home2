@@ -20,17 +20,18 @@
  *     {deliverAs:'followUp', triggerTurn:true}) — the agent is woken with the
  *     result when idle (the ecosystem-consensus behavior); queued passively
  *     (never interrupts) when mid-turn.
- *   - Background log is TAIL-ROTATED at PI_BG_MAX_LOG_MB (default 50 MB): the
- *     process keeps running, the on-disk log is kept to the last N MB, and the
- *     model only ever sees a bounded tail. No process kill for being chatty —
- *     a long-running dev server that logs 200 MB over an hour should stay up.
- *     (This mirrors the built-in bash tool's cap-on-read philosophy, extended to
- *     background logs.)
- *   - On session shutdown: running jobs are SIGTERM'd (process group) and all
- *     log files are swept.
+ *   - Output is captured in an in-memory TAIL RING (PI_BG_RING_MB, default
+ *     2 MB) per job: stdout+stderr are buffered (last N MB), and the model
+ *     only ever reads a short bounded tail. No process kill for being chatty
+ *     — a long-running dev server that logs 200 MB over an hour should stay
+ *     up; its ring just holds the most recent 2 MB. No on-disk log, no
+ *     /tmp accumulation, no rotation races — the ring is an array of buffers
+ *     that evicts from the front when it exceeds the cap.
+ *   - On session shutdown: running jobs are SIGTERM'd (process group) and
+ *     escalated to SIGKILL after a grace; the in-memory registry is cleared.
  *
  * Slash commands: /bg (list), /bg-stop (kill all running), /bg-clear (forget
- * finished jobs + reclaim their logs).
+ * finished jobs).
  *
  * Verified against pi 0.80.3. No external deps; no tmux; no native addons.
  *   pi -e <path-to>/bg-bash.ts
@@ -43,21 +44,33 @@ import { createBashToolDefinition, type AgentToolResult, type AgentToolUpdateCal
 import { Container, Text, type Component, type KeyId, type Text as TextComponent } from "@earendil-works/pi-tui";
 import { Type, type Static } from "typebox";
 import { spawn, type ChildProcess } from "node:child_process";
-import { createWriteStream, type WriteStream } from "node:fs";
-import { mkdirSync, statSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { EventEmitter } from "node:events";
-import { dirname, join } from "node:path";
-import { tmpdir } from "node:os";
 
 // ---------- configuration ----------
 
-const DEFAULT_TIMEOUT_MS = Number(process.env.PI_BG_TIMEOUT_MS ?? 30_000); // auto-background threshold
+/** Parse a positive-number env var; fail fast at load so a typo like
+ * `PI_BG_RING_MB=2mb` or an empty `PI_BG_RING_MB=` doesn't silently produce
+ * `NaN` — which the previous `Number(env ?? default)` returned, making the
+ * ring's eviction cap unreachable and the ring unbounded (in RAM). */
+function positiveNumberEnv(env: string | undefined, fallback: number, name: string): number {
+  if (env === undefined || env === "") return fallback;
+  const n = Number(env);
+  if (!Number.isFinite(n) || n <= 0)
+    throw new Error(`bg-bash: ${name} must be a positive number, got: ${JSON.stringify(env)}`);
+  return n;
+}
+
+const DEFAULT_TIMEOUT_MS = positiveNumberEnv(process.env.PI_BG_TIMEOUT_MS, 30_000, "PI_BG_TIMEOUT_MS"); // auto-background threshold (ms)
 const QUICK_COMPLETION_MS = 2_000; // skip all machinery if it finishes this fast
-const POLL_INTERVAL_MS = 250; // live-output poll interval
+const POLL_INTERVAL_MS = 250; // live-output throttle interval (coalesces chunk bursts into ≤4 renders/sec)
 const OUTPUT_PREVIEW_CHARS = 20_000; // how much we tail into the model result / UI
-const MAX_LOG_BYTES = Number(process.env.PI_BG_MAX_LOG_MB ?? 50) * 1024 * 1024; // tail-rotate cap per job
-const LOG_DIR = join(tmpdir(), "pi-bg-bash");
+const RING_BYTES = positiveNumberEnv(process.env.PI_BG_RING_MB, 2, "PI_BG_RING_MB") * 1024 * 1024; // in-memory tail-ring cap per job (RAM)
+// Collapsed-view line cap for every bg-bash output surface (handoff box, jobs
+// output, completion notifications). Stock bash's own preview — foreground
+// results and streaming partials — is fixed at 5 lines in pi core and is not
+// reachable from an extension.
+const PREVIEW_LINES = positiveNumberEnv(process.env.PI_BG_PREVIEW_LINES, 5, "PI_BG_PREVIEW_LINES");
 const SHUTDOWN_GRACE_MS = 3_000; // SIGTERM → SIGKILL escalation window at session shutdown
 
 // We register a fresh `bash` tool (same name -> overwrites the built-in via
@@ -98,7 +111,6 @@ interface BgBashDetails {
   backgrounded?: boolean;
   jobId?: string;
   pid?: number;
-  logPath?: string;
   reason?: "spawned" | "timeout" | "manual";
 }
 
@@ -118,8 +130,7 @@ interface Job {
   name?: string;
   command: string;
   pid: number;
-  logPath: string;
-  log: PumpLog;
+  ring: RingBuffer;
   status: JobStatus;
   exitCode: number | null;
   startedAt: number;
@@ -139,101 +150,70 @@ interface Registry {
 }
 
 const reg: Registry = { jobs: new Map(), foreground: new Map() };
+let autoBackgroundEnabled = true;
 
-// ---------- bounded, tail-rotating log ----------
+// ---------- bounded, in-memory tail ring ----------
 //
-// Spawn pipes stdout+stderr into this pump (not a file fd) so JS can rotate:
-// once the on-disk log reaches MAX_LOG_BYTES the stream is reopened with 'w'
-// (which truncates), keeping only the most recent segment. Disk per job is
-// bounded at ~MAX_LOG_BYTES; the model only ever reads a short tail. The
-// process is never killed for being chatty.
+// stdout+stderr chunks are buffered in-memory (an array of Buffer slices that
+// evicts from the front once it exceeds `cap`). The model only ever reads a
+// short bounded tail. Killing the process for being chatty is wrong — a dev
+// server that logs 200 MB over an hour should stay up; its ring just holds the
+// most recent `cap` bytes. Replacing the previous on-disk tail-rotating pump:
+// no file, no /tmp accumulation, no flush ordering, no dead-stream reopen, no
+// rotation race window, no disk-fill risk. The cost is `cap` RAM per job
+// (default 2 MB) — bounded and reclaimed when the job entry is dropped
+// (foreground finish, /bg-clear, session shutdown). The process is never killed
+// for being chatty; the ring just evicts old data.
 
-class PumpLog extends EventEmitter {
-  readonly path: string;
-  private readonly cap: number;
-  private stream: WriteStream;
-  private bytesThisFile = 0;
-  private rotating = false;
+class RingBuffer extends EventEmitter {
+  readonly cap: number;
+  private chunks: Buffer[] = [];
+  /** Current total bytes held; the source of truth alongside `chunks`. */
+  byteLength = 0;
 
-  constructor(path: string, cap: number) {
+  constructor(cap: number) {
     super();
-    this.path = path;
     this.cap = cap;
-    mkdirSync(dirname(path), { recursive: true });
-    this.stream = createWriteStream(path);
-    this.stream.on("error", () => {
-      /* best-effort; log failures must not crash the extension */
-    });
-    // Re-emit the current stream's drain so spawnPiped can resume a paused
-    // producer when the writable has room again (backpressure bridge).
-    this.stream.on("drain", () => this.emit("drain"));
   }
 
-  /** Returns the writable's backpressure signal; `false` means "pause the producer". */
-  write(chunk: Buffer): boolean {
-    if (this.rotating) return true; // dropping during the truncate window; don't stall the producer
-    if (this.stream.destroyed) {
-      // Underlying stream died (e.g. disk error mid-flush). Reopen fresh so we
-      // keep writing what we can rather than stalling or dropping forever.
-      this.reopen();
-      this.emit("drain"); // unblock a producer paused by the dead stream
+  /** Append a chunk; evict front chunks (and trim an oversize single chunk)
+   * until `byteLength <= cap`. Emits 'data' so `streamLog` can push live tails. */
+  write(chunk: Buffer): void {
+    this.chunks.push(chunk);
+    this.byteLength += chunk.length;
+    while (this.byteLength > this.cap && this.chunks.length > 1) {
+      const drop = this.chunks.shift()!;
+      this.byteLength -= drop.length;
     }
-    let ok = true;
-    try {
-      ok = this.stream.write(chunk);
-    } catch {
-      /* stream closed underneath us; drop without stalling */
+    // A single chunk larger than the cap: keep only its tail (the loop above
+    // can't evict the last chunk; trim it in place).
+    if (this.byteLength > this.cap && this.chunks.length === 1) {
+      const over = this.byteLength - this.cap;
+      this.chunks[0] = this.chunks[0].subarray(over);
+      this.byteLength = this.cap;
     }
-    this.bytesThisFile += chunk.length;
-    if (this.bytesThisFile >= this.cap) this.rotate();
-    return ok;
+    this.emit("data");
   }
 
-  private reopen(): void {
-    try {
-      this.stream = createWriteStream(this.path);
-    } catch {
-      return;
+  /** The last `min(byteLength, maxBytes)` bytes as a UTF-8 string. A byte window
+   * may split a multibyte char at the boundary; the resulting replacement char
+   * (U+FFFD) is tolerated by the built-in bash renderer's readTail too. */
+  tailString(maxBytes: number): string {
+    const len = Math.min(this.byteLength, maxBytes);
+    if (len <= 0) return "";
+    let need = len;
+    const parts: Buffer[] = [];
+    for (let i = this.chunks.length - 1; i >= 0 && need > 0; i--) {
+      const c = this.chunks[i];
+      if (c.length <= need) {
+        parts.unshift(c);
+        need -= c.length;
+      } else {
+        parts.unshift(c.subarray(c.length - need));
+        need = 0;
+      }
     }
-    this.stream.on("error", () => {});
-    this.stream.on("drain", () => this.emit("drain"));
-    this.bytesThisFile = 0;
-    this.rotating = false;
-  }
-
-  private rotate(): void {
-    if (this.rotating) return;
-    if (this.stream.destroyed) {
-      // Stream already dead; nothing left to flush — swap immediately instead
-      // of waiting for a finish/error event that will never fire.
-      this.reopen();
-      this.emit("drain");
-      return;
-    }
-    this.rotating = true;
-    const old = this.stream;
-    // 'w' truncates on open. End the old stream, then reopen the same path
-    // once it has fully flushed. Path stays constant so readers always hit the
-    // live segment. Both `finish` and `error` reset the pump — a stream that
-    // errors mid-flush (e.g. disk full) must not leave `rotating` stuck true,
-    // which would silently drop every subsequent chunk for the job's life.
-    const onOldDone = () => {
-      old.removeListener("finish", onOldDone);
-      old.removeListener("error", onOldDone);
-      this.reopen();
-      this.emit("drain"); // fresh empty stream: unblock any paused producer
-    };
-    old.once("finish", onOldDone);
-    old.once("error", onOldDone);
-    old.end();
-  }
-
-  close(): void {
-    try {
-      this.stream.end();
-    } catch {
-      /* ignore */
-    }
+    return Buffer.concat(parts, len).toString("utf8");
   }
 }
 
@@ -243,10 +223,6 @@ function nextJobId(): string {
   return `b${randomBytes(4).toString("hex")}`;
 }
 
-function logPathFor(id: string): string {
-  return join(LOG_DIR, `${id}.log`);
-}
-
 function text(s: string): { type: "text"; text: string } {
   return { type: "text", text: s };
 }
@@ -254,10 +230,9 @@ function text(s: string): { type: "text"; text: string } {
 function spawnPiped(args: {
   command: string;
   cwd: string;
-  id: string;
   cap: number;
-}): { pid: number; log: PumpLog; exit: Job["exit"]; child: ChildProcess } {
-  const log = new PumpLog(logPathFor(args.id), args.cap);
+}): { pid: number; ring: RingBuffer; exit: Job["exit"]; child: ChildProcess } {
+  const ring = new RingBuffer(args.cap);
   const child = spawn("bash", ["-c", args.command], {
     cwd: args.cwd,
     detached: true, // new process group/session — survives independently, killable as -pid
@@ -265,23 +240,20 @@ function spawnPiped(args: {
     env: { ...process.env },
   });
   // Synchronous spawn failure (e.g. shell missing): surface as a normal tool
-  // error instead of registering an un-killable pid:undefined job.
+  // error instead of registering an un-killable pid:undefined job. Attach a
+  // noop 'error' listener BEFORE bailing: spawn failures emit 'error'
+  // asynchronously on the next tick, and with no listener Node rethrows it
+  // as an uncaught exception that crashes the agent process. The ring is
+  // in-memory and GC'd on scope exit, so the failure path leaks nothing.
   if (child.pid == null) {
-    log.close();
+    child.once("error", () => {});
     throw new Error(`Failed to spawn bash: ${args.command}`);
   }
-  child.stdout?.on("data", (d: Buffer) => {
-    if (!log.write(d)) {
-      child.stdout?.pause();
-      log.once("drain", () => child.stdout?.resume());
-    }
-  });
-  child.stderr?.on("data", (d: Buffer) => {
-    if (!log.write(d)) {
-      child.stderr?.pause();
-      log.once("drain", () => child.stderr?.resume());
-    }
-  });
+  // stdout+stderr → ring. No backpressure bridge needed: the ring never blocks
+  // (it evicts rather than applying backpressure), so the pipes are never
+  // paused and `write` is synchronous in all cases.
+  child.stdout?.on("data", (d: Buffer) => ring.write(d));
+  child.stderr?.on("data", (d: Buffer) => ring.write(d));
 
   const exit = new Promise<ExitResult>((resolve) => {
     child.on("error", (err: Error) => resolve({ code: null, signal: null, spawnError: err }));
@@ -294,7 +266,9 @@ function spawnPiped(args: {
           /* group may already be gone */
         }
       }
-      log.close();
+      // No flush needed: 'close' fires only after stdout/stderr have ended,
+      // so every 'data' chunk is already in the ring. Every reader (watcher,
+      // foreground result, jobs output) reads the ring directly.
       resolve({ code: code ?? null, signal: signal ?? null });
     });
   });
@@ -304,7 +278,7 @@ function spawnPiped(args: {
   // `sleep 1` inside the 2s quick window; real pi hides this because the TUI
   // keeps the loop busy). Background jobs are unref'd at promote/spawn-bg so
   // they never keep the process alive.
-  return { pid: child.pid, log, exit, child };
+  return { pid: child.pid, ring, exit, child };
 }
 
 /** Signal the whole detached process group (fall back to just the leader). */
@@ -320,30 +294,51 @@ function killProcessTree(pid: number, sig: NodeJS.Signals = "SIGTERM"): void {
   }
 }
 
-/** Tail the log file to a bounded string (drops a partial first line when truncated). */
-function readTail(path: string, maxBytes = OUTPUT_PREVIEW_CHARS): string {
-  try {
-    const size = statSync(path).size;
-    if (size === 0) return "";
-    const len = Math.min(size, maxBytes);
-    const start = size - len;
-    const buf = Buffer.alloc(len);
-    // openSync/readSync/closeSync kept local to avoid importing sync fs helpers
-    // we already don't use elsewhere.
-    const { openSync, readSync, closeSync } = require("node:fs");
-    const fd = openSync(path, "r");
-    readSync(fd, buf, 0, len, start);
-    closeSync(fd);
-    let s = buf.toString("utf8");
-    if (start > 0) {
-      const nl = s.indexOf("\n");
-      s = "…[ truncated ]\n" + (nl >= 0 ? s.slice(nl + 1) : s);
-    }
-    return s;
-  } catch {
-    // file may be momentarily absent during rotation
-    return "";
+/** SIGTERM has already been sent to `job.pid`; resolve once `job` exits, or
+ * escalate to SIGKILL after the grace window. pi's ExtensionRunner.emit() awaits
+ * each session_shutdown handler and its callers await emitSessionShutdownEvent,
+ * so awaiting this inside the shutdown handler blocks the shutdown flow only as
+ * long as needed: well-behaved jobs resolve on natural exit (clearing the
+ * timer); only SIGTERM-trapping detached jobs (a dev server doing graceful
+ * shutdown) hold the full grace, then are force-killed rather than orphaned.
+ * This replaces an unref'd fallback timer that a draining event loop (headless /
+ * bare-node embeds) could starve, leaking the detached group past the session. */
+function escalateKill(job: Job): Promise<void> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = () => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        resolve();
+      }
+    };
+    const timer = setTimeout(() => {
+      try {
+        killProcessTree(job.pid, "SIGKILL");
+      } catch {
+        /* already dead */
+      }
+      done();
+    }, SHUTDOWN_GRACE_MS);
+    job.exit.then(() => done());
+  });
+}
+
+/** Tail the ring to a bounded string (drops a partial first line when truncated). */
+function readTail(ring: RingBuffer, maxBytes = OUTPUT_PREVIEW_CHARS): string {
+  const total = ring.byteLength;
+  if (total === 0) return "";
+  const s = ring.tailString(maxBytes);
+  if (total > maxBytes) {
+    const nl = s.indexOf("\n");
+    // Only drop the partial first line when there is content after the
+    // newline. A window dominated by one long line (minified output, base64,
+    // a big JSON/blob) ends with its newline at the LAST character; slicing
+    // past it would discard the entire tail (P1).
+    return "…[ truncated ]\n" + (nl >= 0 && nl < s.length - 1 ? s.slice(nl + 1) : s);
   }
+  return s;
 }
 
 function formatDuration(ms: number): string {
@@ -391,31 +386,40 @@ function clearHint(ctx: ExtensionContext): void {
   }
 }
 
-/** Poll the log and push growing tails as partial tool results (live output box). */
+/** Push growing tails as partial tool results (live output box). Driven
+ * directly off the ring's 'data' event and throttled to POLL_INTERVAL_MS so a
+ * burst of chunks coalesces into ≤4 renders/sec — matching the cadence of the
+ * old statSync poller, without flooding the renderer on a chatty producer.
+ * The unref'd timer never holds the loop alive (background jobs must not); a
+ * dropped trailing flush is not a correctness issue — foreground results and the
+ * completion watcher read the ring directly. */
 function streamLog(
-  logPath: string,
+  ring: RingBuffer,
   onUpdate: AgentToolUpdateCallback<BgBashDetails | undefined> | undefined,
 ): { stop: () => void } {
-  let size = 0;
   let stopped = false;
-  const tick = () => {
+  let dirty = false;
+  let pending: ReturnType<typeof setTimeout> | null = null;
+  const flush = () => {
+    pending = null;
+    if (stopped || !dirty) return;
+    dirty = false;
+    onUpdate?.({ content: [text(readTail(ring))], details: undefined });
+  };
+  const onData = () => {
     if (stopped) return;
-    try {
-      const s = statSync(logPath);
-      if (s.size !== size) {
-        size = s.size;
-        onUpdate?.({ content: [text(readTail(logPath))], details: undefined });
-      }
-    } catch {
-      /* file may be briefly absent during rotation */
+    dirty = true;
+    if (pending === null) {
+      pending = setTimeout(flush, POLL_INTERVAL_MS);
+      pending.unref();
     }
   };
-  const handle = setInterval(tick, POLL_INTERVAL_MS);
-  handle.unref();
+  ring.on("data", onData);
   return {
     stop: () => {
       stopped = true;
-      clearInterval(handle);
+      if (pending) clearTimeout(pending);
+      ring.off("data", onData);
     },
   };
 }
@@ -432,7 +436,17 @@ function startBackgroundWatcher(args: { job: Job; ctx: ExtensionContext; pi: Ext
 
     if (args.job.outputConsumed) return; // the agent already read the output; don't notify (the #18544 notification-wall guard)
 
-    const tail = readTail(args.job.logPath);
+    const tail = readTail(args.job.ring);
+    // Collapsed-view contract: a notification must never dump the whole tail
+    // into the chat. Show the last 5 lines plus a pointer to jobs output for
+    // the rest (the ring is the only store; there is no file to expand into).
+    const tailPreview = (() => {
+      if (!tail) return "";
+      const lines = tail.split("\n");
+      if (lines.length <= PREVIEW_LINES) return `\n\n----\n${tail}`;
+      const shown = lines.slice(-PREVIEW_LINES).join("\n");
+      return `\n\n----\n… (${lines.length - PREVIEW_LINES} earlier lines — jobs action='output' id='${args.job.id}' to read more)\n${shown}`;
+    })();
     const exitLine = r.spawnError
       ? `spawn error: ${r.spawnError.message}`
       : r.code === null
@@ -443,8 +457,8 @@ function startBackgroundWatcher(args: { job: Job; ctx: ExtensionContext; pi: Ext
     const msg =
       `Background job ${args.job.id} ${args.job.status} (${exitLine}) after ${formatDuration(
         args.job.endedAt - args.job.startedAt,
-      )}.\nCommand: ${args.job.command}\nOutput: ${args.job.logPath}` +
-      (tail ? `\n\n----\n${tail}` : "");
+      )}.\nCommand: ${args.job.command}` +
+      tailPreview;
     // The `triggerTurn` branch (agent-session sendCustomMessage) starts a new
     // LLM turn when the agent is idle; when mid-turn, `deliverAs:'followUp'`
     // queues passively and never interrupts. N jobs finishing while idle =>
@@ -468,7 +482,6 @@ function startBackgroundWatcher(args: { job: Job; ctx: ExtensionContext; pi: Ext
 // call that returns in ~0ms next to a long-running command) with a clear status
 // line. Only the handoff path uses custom rendering; every other result
 // delegates to the stock bash renderer untouched.
-const BG_PREVIEW_LINES = 10;
 
 /** Minimal slice of ToolRenderContext the background box needs. */
 type BgRenderContext = {
@@ -499,9 +512,9 @@ function renderBackgroundResult(
     .trim();
   const lines = output.split("\n");
   if (output) {
-    const preview = !options.expanded && lines.length > BG_PREVIEW_LINES;
+    const preview = !options.expanded && lines.length > PREVIEW_LINES;
     const shown = preview
-      ? `${theme.fg("muted", `… (${lines.length - BG_PREVIEW_LINES} earlier lines — press [enter] to expand)`)}\n${theme.fg("toolOutput", lines.slice(-BG_PREVIEW_LINES).join("\n"))}`
+      ? `${theme.fg("muted", `… (${lines.length - PREVIEW_LINES} earlier lines — Ctrl-O to expand)`)}\n${theme.fg("toolOutput", lines.slice(-PREVIEW_LINES).join("\n"))}`
       : theme.fg("toolOutput", output);
     component.addChild(new Text(`\n${shown}`, 0, 0));
   }
@@ -512,7 +525,6 @@ function renderBackgroundResult(
         ? "Backgrounded"
         : "Running in background";
   component.addChild(new Text(`\n${theme.fg("toolTitle", `▶ ${verb} — job ${d?.jobId ?? "?"} (pid ${d?.pid ?? "?"})`)}`, 0, 0));
-  component.addChild(new Text(`\n${theme.fg("muted", `Output: ${d?.logPath ?? ""}`)}`, 0, 0));
   component.invalidate();
   return component;
 }
@@ -526,12 +538,13 @@ function makeBashTool(_pi: ExtensionAPI): ToolDefinition<typeof bashSchema, BgBa
     name: "bash",
     label: "bash",
     description:
-      "Run a bash command. Commands that run longer than the timeout (default 30s) are automatically moved to the background and this tool returns immediately with a job id; the agent is notified when they finish. Set run_in_background=true to start in the background right away. Check / inspect / stop background jobs with the `jobs` tool.",
+      "Run a bash command. Commands that run longer than the timeout (default 30s) are automatically moved to the background and this tool returns immediately with a job id; the agent is notified when they finish. Use /bg-off to disable automatic backgrounding and cooperative steering; explicit run_in_background=true remains available. Check / inspect / stop background jobs with the `jobs` tool.",
     promptSnippet:
-      "Run shell commands; long-running commands auto-background after ~30s — use jobs to inspect/stop them; avoid `sleep` to wait",
+      "Run shell commands; long-running commands auto-background after ~30s — use /bg-off to disable automatic backgrounding; use jobs to inspect/stop background jobs; avoid `sleep` to wait",
     promptGuidelines: [
       "Prefer run_in_background:true for commands expected to be long-running (dev servers, watchers, test suites, builds).",
       "After a command auto-backgrounds, continue with independent useful work — do NOT call sleep or poll jobs merely to wait; you will be notified when it finishes. Use jobs action='output' to inspect, jobs action='kill' to stop.",
+      "Use /bg-off when automatic backgrounding and cooperative steering are not wanted; explicit run_in_background:true remains available. Use /bg-on to restore the default.",
     ],
     parameters: bashSchema,
 
@@ -545,7 +558,8 @@ function makeBashTool(_pi: ExtensionAPI): ToolDefinition<typeof bashSchema, BgBa
       return runForeground({
         toolCallId,
         command,
-        timeoutMs: params.timeout ? params.timeout * 1000 : DEFAULT_TIMEOUT_MS,
+        timeoutMs: autoBackgroundEnabled ? (params.timeout ? params.timeout * 1000 : DEFAULT_TIMEOUT_MS) : undefined,
+        backgroundingEnabled: autoBackgroundEnabled,
         signal,
         onUpdate,
         ctx,
@@ -578,16 +592,15 @@ function spawnBackground(args: {
   pi: ExtensionAPI;
 }): AgentToolResult<BgBashDetails | undefined> {
   const id = nextJobId();
-  const { pid, log, exit, child } = spawnPiped({ command: args.command, cwd: args.ctx.cwd, id, cap: MAX_LOG_BYTES });
+  const { pid, ring, exit, child } = spawnPiped({ command: args.command, cwd: args.ctx.cwd, cap: RING_BYTES });
   child.unref(); // run_in_background: spawned straight to background
-  void child; // retained on the Job for potential introspection; kill uses pid via killProcessTree
+  void child; // child's lifetime is held by the `exit` promise closure; kill uses pid via killProcessTree
   const job: Job = {
     id,
     name: args.name,
     command: args.command,
     pid,
-    logPath: log.path,
-    log,
+    ring,
     status: "running",
     exitCode: null,
     startedAt: Date.now(),
@@ -600,26 +613,27 @@ function spawnBackground(args: {
   return {
     content: [
       text(
-        `Command running in background with ID: ${id}.${args.name ? ` Name: ${args.name}.` : ""}\nOutput is being written to: ${log.path}`,
+        `Command running in background with ID: ${id}.${args.name ? ` Name: ${args.name}.` : ""}\nUse the jobs tool (action='output', id='${id}') to read its output.`,
       ),
     ],
-    details: { backgrounded: true, jobId: id, pid, logPath: log.path, reason: "spawned" },
+    details: { backgrounded: true, jobId: id, pid, reason: "spawned" },
   };
 }
 
 async function runForeground(args: {
   toolCallId: string;
   command: string;
-  timeoutMs: number;
+  timeoutMs: number | undefined;
+  backgroundingEnabled: boolean;
   signal: AbortSignal | undefined;
   onUpdate: AgentToolUpdateCallback<BgBashDetails | undefined> | undefined;
   ctx: ExtensionContext;
   pi: ExtensionAPI;
 }): Promise<AgentToolResult<BgBashDetails | undefined>> {
-  const { toolCallId, command, timeoutMs, signal, onUpdate, ctx, pi } = args;
+  const { toolCallId, command, timeoutMs, backgroundingEnabled, signal, onUpdate, ctx, pi } = args;
   const id = nextJobId();
 
-  const { pid, log, exit, child } = spawnPiped({ command, cwd: ctx.cwd, id, cap: MAX_LOG_BYTES });
+  const { pid, ring, exit, child } = spawnPiped({ command, cwd: ctx.cwd, cap: RING_BYTES });
 
   // pause bridge: Ctrl+Shift+B, the timeout timer, or cooperative steering
   // resolve `pausePromise` to move the command into the background.
@@ -653,8 +667,7 @@ async function runForeground(args: {
     id,
     command,
     pid,
-    logPath: log.path,
-    log,
+    ring,
     status: "running",
     exitCode: null,
     startedAt: Date.now(),
@@ -665,33 +678,44 @@ async function runForeground(args: {
   reg.jobs.set(id, job);
 
   // Auto-background timer. unref so it never keeps the process alive on its own.
-  const timeoutTimer = setTimeout(() => {
-    if (!reg.foreground.has(toolCallId)) return; // already finished/backgrounded
-    requestPause("timeout");
-  }, timeoutMs);
-  timeoutTimer.unref();
+  let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
+  if (backgroundingEnabled) {
+    timeoutTimer = setTimeout(() => {
+      if (!autoBackgroundEnabled || !reg.foreground.has(toolCallId)) return; // disabled, already finished, or backgrounded
+      requestPause("timeout");
+    }, timeoutMs ?? DEFAULT_TIMEOUT_MS);
+    timeoutTimer.unref();
+  }
 
   let progressPoller: { stop: () => void } | undefined;
+  let hintTimer: ReturnType<typeof setTimeout> | undefined;
   let hintShown = false;
 
   const cleanup = () => {
     progressPoller?.stop();
-    clearTimeout(timeoutTimer);
+    if (hintTimer) clearTimeout(hintTimer);
+    if (timeoutTimer) clearTimeout(timeoutTimer);
     if (signal) signal.removeEventListener("abort", onAbort);
   };
 
   const finishForeground = (r: ExitResult, output: string) => {
     // A spawn error (bash never exec'd) is a tool error, not a clean result.
     // Any non-zero foreground exit is a tool error (a script can `exit 137`;
-    // we don't guess signal deaths from the 128+signum convention). Signal
-    // death (code null) — e.g. an Esc cancel — returns the partial output.
+    // we don't guess signal deaths from the 128+signum convention). A genuine
+    // Esc/abort cancel (abort fired with no pause requested) SIGTERMs the
+    // process group, so the child exits with code null — surface it as a tool
+    // error (partial output appended) so the model can't mistake the partial
+    // output for a clean success, matching stock bash's "Command aborted"
+    // throw. Other signal deaths (a command that self-kills, e.g. `kill -9 $$`)
+    // keep the partial-output return.
     if (r.spawnError) throw new Error(`Failed to spawn bash: ${r.spawnError.message}`);
+    const aborted = !!signal && signal.aborted && !pauseRequested;
+    if (aborted) throw new Error(`${output ? `${output}\n` : ""}Command aborted`);
     if (r.code !== null && r.code !== 0) throw new Error(output || `Command exited with code ${r.code}`);
     return { content: [text(output || "(no output)")], details: undefined };
   };
   const reapForegroundJob = () => {
     reg.jobs.delete(id);
-    try { log.close(); const { unlinkSync } = require("node:fs"); unlinkSync(log.path); } catch { /* best-effort */ }
   };
 
   const promoteToBackground = (reason: "manual" | "timeout") => {
@@ -702,37 +726,27 @@ async function runForeground(args: {
     job.isBackground = true;
     startBackgroundWatcher({ job, ctx, pi });
     if (reason === "timeout" && ctx.hasUI) {
-      ctx.ui.notify(`▶ ${id} auto-backgrounded after ${Math.round(timeoutMs / 1000)}s`, "info");
+      ctx.ui.notify(`▶ ${id} auto-backgrounded after ${Math.round((timeoutMs ?? DEFAULT_TIMEOUT_MS) / 1000)}s`, "info");
     }
   };
 
   try {
-    // Quick completion window: skip the whole backgrounding dance for fast
-    // commands. The pause promise is in this race too, so a timeout or manual
-    // background request that arrives during the quick window is honored
-    // immediately (matters when `timeout` is set below QUICK_COMPLETION_MS —
-    // the §12.4 latent bug).
-    const quick = await Promise.race<{ kind: "completed"; r: ExitResult } | null | "paused">([
-      exit.then((r) => ({ kind: "completed" as const, r })),
-      new Promise<null>((r) => {
-        const t = setTimeout(() => r(null), QUICK_COMPLETION_MS);
-        t.unref();
-      }),
-      pausePromise.then(() => "paused" as const),
-    ]);
-    if (quick !== null && quick !== "paused") {
-      // Finished fast: read the output BEFORE unlinking the log (order matters).
-      const output = readTail(log.path);
-      reapForegroundJob();
-      return finishForeground(quick.r, output);
+    // The hint + live-output streamer arm after the quick window, so fast
+    // commands exit before it fires (no "(ctrl+shift+b…)" flash, no streamer
+    // for sub-2s runs). It's a delayed side effect — NOT a race contender — so
+    // a single `exit` vs `pausePromise` race decides the outcome, and a
+    // `timeout` set below QUICK_COMPLETION_MS still wins: pausePromise resolves
+    // at 1s, well inside the 2s window (the §12.4 case).
+    if (backgroundingEnabled) {
+      hintTimer = setTimeout(() => {
+        progressPoller = streamLog(ring, onUpdate);
+        showHint(ctx);
+        hintShown = true;
+      }, QUICK_COMPLETION_MS);
+      hintTimer.unref();
     }
 
-    // Still running past the quick window: stream live output + show the hint.
-    progressPoller = streamLog(log.path, onUpdate);
-    showHint(ctx);
-    hintShown = true;
-
-    // Race: natural completion vs backgrounding (manual or timeout).
+    // One race: natural completion vs backgrounding (manual or timeout).
     const race = await Promise.race<
       | { kind: "completed"; r: ExitResult }
       | { kind: "backgrounded"; reason: "manual" | "timeout" }
@@ -745,17 +759,17 @@ async function runForeground(args: {
       promoteToBackground(race.reason);
       const suffix =
         race.reason === "timeout"
-          ? ` (auto-backgrounded after ${Math.round(timeoutMs / 1000)}s; still running — use jobs action='output' id='${id}' to check)`
+          ? ` (auto-backgrounded after ${Math.round((timeoutMs ?? DEFAULT_TIMEOUT_MS) / 1000)}s; still running — use jobs action='output' id='${id}' to check)`
           : "";
       return {
         content: [
-          text(`Process backgrounded as ${id}${suffix}\nCommand: ${command}\nPID: ${pid}\nOutput: ${log.path}`),
+          text(`Process backgrounded as ${id}${suffix}\nCommand: ${command}\nPID: ${pid}`),
         ],
-        details: { backgrounded: true, jobId: id, pid, logPath: log.path, reason: race.reason },
+        details: { backgrounded: true, jobId: id, pid, reason: race.reason },
       };
     }
-    // Completed in the foreground (past the quick window): read output, then drop the job + log.
-    const output = readTail(log.path);
+    // Completed in the foreground: read output, then drop the job (ring is GC'd).
+    const output = readTail(ring);
     reapForegroundJob();
     return finishForeground(race.r, output);
   } finally {
@@ -763,20 +777,40 @@ async function runForeground(args: {
     if (hintShown) clearHint(ctx);
     reg.foreground.delete(toolCallId);
     if (!handedToBackground) {
-      // Genuinely cancelled in the foreground: log already unlinked above when
-      // finishing; nothing more to do. The job entry was dropped on finish.
+      // Genuinely cancelled in the foreground: the job entry was dropped on
+      // finish; the ring is GC'd with it. Nothing more to do.
     }
   }
 }
 
 // ---------- the jobs tool (list / output / kill) ----------
 
+function renderJobsResult(
+  result: AgentToolResult<undefined>,
+  options: ToolRenderResultOptions,
+  theme: Theme,
+): Component {
+  const output = (result.content ?? [])
+    .map((c) => ("text" in c ? c.text : ""))
+    .join("\n")
+    .trim();
+  const lines = output ? output.split("\n") : [];
+  const collapsed = !options.expanded && lines.length > PREVIEW_LINES;
+  const shown = collapsed
+    ? `${theme.fg("muted", `… (${lines.length - PREVIEW_LINES} earlier lines, Ctrl-O to expand)`)}\n${theme.fg("toolOutput", lines.slice(-PREVIEW_LINES).join("\n"))}`
+    : theme.fg("toolOutput", output);
+  const component = new Container();
+  if (output) component.addChild(new Text(`\n${shown}`, 0, 0));
+  component.invalidate();
+  return component;
+}
+
 function makeJobsTool(_pi: ExtensionAPI): ToolDefinition<typeof jobsSchema, undefined> {
   return {
     name: "jobs",
     label: "Background Jobs",
     description:
-      "Manage background bash jobs started by the bash tool. Actions: 'list' (all jobs with status/pid/duration/command), 'output' (tail a job's log, bounded by maxBytes), 'kill' (terminate a running job's whole process group). Use /bg-clear to forget finished jobs and reclaim their logs.",
+      "Manage background bash jobs started by the bash tool. Actions: 'list' (all jobs with status/pid/duration/command), 'output' (tail a job's output, bounded by maxBytes), 'kill' (terminate a running job's whole process group). Use /bg-clear to forget finished jobs.",
     parameters: jobsSchema,
     async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
       const action = (params.action ?? "").trim();
@@ -789,24 +823,28 @@ function makeJobsTool(_pi: ExtensionAPI): ToolDefinition<typeof jobsSchema, unde
       const job = id ? reg.jobs.get(id) : undefined;
       if (action === "output") {
         if (!job) throw new Error(`Unknown job: ${id}`);
-        job.outputConsumed = true; // suppress redundant completion notice later
-        return { content: [text(readTail(job.logPath, params.maxBytes) || "(no output yet)")], details: undefined };
+        // Reading a running job is only a partial snapshot; keep the eventual
+        // completion notification enabled so callers do not have to poll until
+        // the process exits just to learn that it finished. A completed job's
+        // final output was explicitly requested, so suppress its redundant
+        // notification.
+        if (job.status !== "running") job.outputConsumed = true;
+        return { content: [text(readTail(job.ring, params.maxBytes) || "(no output yet)")], details: undefined };
       }
       if (action === "kill") {
         if (!job) throw new Error(`Unknown job: ${id}`);
         if (job.status !== "running") throw new Error(`Job ${job.id} is ${job.status}, not running.`);
         job.outputConsumed = true;
         killProcessTree(job.pid, "SIGTERM");
-        return { content: [text(`Killed ${job.id}. Output kept at ${job.logPath}`)], details: undefined };
+        return { content: [text(`Killed ${job.id}.`)], details: undefined };
       }
       throw new Error(`Unknown jobs action: ${action}`);
     },
     renderCall(args) {
       return new Text(`jobs ${args.action ?? ""}${args.id ? ` ${args.id}` : ""}`, 0, 0) as TextComponent;
     },
-    renderResult(result) {
-      const t = result.content?.map((c) => ("text" in c ? c.text : "")).join("\n") ?? "";
-      return new Text(t, 0, 0) as TextComponent;
+    renderResult(result, options, theme) {
+      return renderJobsResult(result, options, theme);
     },
   };
 }
@@ -814,6 +852,7 @@ function makeJobsTool(_pi: ExtensionAPI): ToolDefinition<typeof jobsSchema, unde
 // ---------- shortcuts + cooperative steering ----------
 
 function backgroundMostRecentForeground(): boolean {
+  if (!autoBackgroundEnabled) return false;
   const toolCallId = lastForegroundToolCallId();
   if (!toolCallId) return false;
   const slot = reg.foreground.get(toolCallId);
@@ -839,11 +878,18 @@ function registerShortcuts(pi: ExtensionAPI): void {
 
 function registerCooperativeSteering(pi: ExtensionAPI): void {
   pi.on("input", async (event, ctx) => {
-    // Only intercept when a foreground command is actively running.
-    if (reg.foreground.size === 0) return { action: "continue" };
     // Don't hijack messages we (or other extensions) injected ourselves.
     if (event.source === "extension") return { action: "continue" };
-
+    // /bg-on and /bg-off remain usable while a foreground command is running;
+    // toggling the mode should not itself background or abort that command.
+    const command = event.text.trim();
+    if (reg.foreground.size > 0 && (command === "/bg-on" || command === "/bg-off")) {
+      setAutoBackgroundEnabled(command === "/bg-on", ctx);
+      return { action: "handled" };
+    }
+    // Only intercept when a foreground command is actively running or the mode
+    // is enabled. In off mode, user input must not trigger cooperative steering.
+    if (!autoBackgroundEnabled || reg.foreground.size === 0) return { action: "continue" };
     // Move the most-recent running command to the background...
     backgroundMostRecentForeground();
     // ...abort the current turn so the bash tool returns its "backgrounded" result...
@@ -854,7 +900,13 @@ function registerCooperativeSteering(pi: ExtensionAPI): void {
     }
     // ...and re-deliver the user's message as a fresh follow-up turn.
     try {
-      pi.sendUserMessage(event.text, { deliverAs: "followUp" });
+      // Re-deliver text AND any images the user pasted (InputEvent.images
+      // would otherwise be silently dropped; sendUserMessage accepts an
+      // (TextContent | ImageContent)[] content array).
+      const content = event.images?.length
+        ? [{ type: "text", text: event.text }, ...event.images]
+        : event.text;
+      pi.sendUserMessage(content, { deliverAs: "followUp" });
     } catch {
       /* session may have ended between abort and resubmit */
     }
@@ -864,11 +916,38 @@ function registerCooperativeSteering(pi: ExtensionAPI): void {
 
 // ---------- slash commands ----------
 
+function setAutoBackgroundEnabled(enabled: boolean, ctx: ExtensionContext): void {
+  autoBackgroundEnabled = enabled;
+  if (!enabled) clearHint(ctx);
+  if (ctx.hasUI) {
+    ctx.ui.notify(
+      enabled
+        ? "Automatic backgrounding enabled."
+        : "Automatic backgrounding disabled. Explicit run_in_background remains available.",
+      "info",
+    );
+  }
+}
+
 function registerCommands(pi: ExtensionAPI): void {
   pi.registerCommand("bg", {
-    description: "List background bash jobs (alias for `jobs action='list'`).",
+    description: "List background bash jobs and show whether automatic backgrounding is enabled.",
     async handler(_args, ctx) {
-      if (ctx.hasUI) ctx.ui.notify(formatList(), "info");
+      if (ctx.hasUI) {
+        ctx.ui.notify(`${autoBackgroundEnabled ? "Automatic backgrounding is ON." : "Automatic backgrounding is OFF."}\n\n${formatList()}`, "info");
+      }
+    },
+  });
+  pi.registerCommand("bg-on", {
+    description: "Enable automatic backgrounding and cooperative steering (the default).",
+    async handler(_args, ctx) {
+      setAutoBackgroundEnabled(true, ctx);
+    },
+  });
+  pi.registerCommand("bg-off", {
+    description: "Disable automatic backgrounding and cooperative steering; explicit run_in_background remains available.",
+    async handler(_args, ctx) {
+      setAutoBackgroundEnabled(false, ctx);
     },
   });
   pi.registerCommand("bg-stop", {
@@ -886,18 +965,11 @@ function registerCommands(pi: ExtensionAPI): void {
     },
   });
   pi.registerCommand("bg-clear", {
-    description: "Forget finished/failed background jobs and reclaim their log files.",
+    description: "Forget finished/failed background jobs and free their in-memory output rings.",
     async handler(_args, ctx) {
-      const { unlinkSync } = require("node:fs");
       let n = 0;
       for (const [jid, j] of reg.jobs) {
         if (j.status !== "running") {
-          try {
-            j.log.close();
-            unlinkSync(j.logPath);
-          } catch {
-            /* best-effort */
-          }
           reg.jobs.delete(jid);
           n++;
         }
@@ -910,51 +982,37 @@ function registerCommands(pi: ExtensionAPI): void {
 // ---------- lifecycle ----------
 
 function registerLifecycle(pi: ExtensionAPI): void {
-  pi.on("session_start", () => {
-    mkdirSync(LOG_DIR, { recursive: true });
-  });
-
-  pi.on("session_shutdown", () => {
-    const { unlinkSync } = require("node:fs");
-    // Kill any still-running background jobs (process group) and sweep ALL log
-    // files so $TMPDIR/pi-bg-bash doesn't accumulate across sessions.
+  pi.on("session_shutdown", async () => {
+    // SIGTERM every still-running job and start each escalation race. The race
+    // (see escalateKill) resolves on natural exit, or SIGKILL after the grace so
+    // a SIGTERM-trapping detached job can't orphan. Clearing the registry
+    // synchronously keeps shutdown observably complete for callers that don't
+    // await the handler (the test harness); the trailing await is what makes
+    // real pi — which awaits session_shutdown handlers — hold long enough for
+    // the SIGKILL escalation to fire before the loop drains. Rings are GC'd with
+    // their job entries, so there's nothing to sweep on disk.
+    const kills: Promise<void>[] = [];
     for (const job of reg.jobs.values()) {
       if (job.status === "running") {
         job.outputConsumed = true; // suppress a teardown notification
-        const pid = job.pid;
         try {
-          killProcessTree(pid, "SIGTERM");
+          killProcessTree(job.pid, "SIGTERM");
         } catch {
-          /* ignore */
+          /* already gone */
         }
-        // Escalate to SIGKILL after a short grace so a job that traps/ignores
-        // SIGTERM (e.g. a dev server doing graceful shutdown) can't outlive
-        // the session as a detached orphan. unref'd: fires as long as the loop
-        // is still alive (TUI case); well-behaved TERM'd jobs are already gone.
-        const escalate = setTimeout(() => {
-          try {
-            killProcessTree(pid, "SIGKILL");
-          } catch {
-            /* already dead */
-          }
-        }, SHUTDOWN_GRACE_MS);
-        escalate.unref();
-      }
-      try {
-        job.log.close();
-        unlinkSync(job.logPath);
-      } catch {
-        /* ignore */
+        kills.push(escalateKill(job));
       }
     }
     reg.jobs.clear();
     reg.foreground.clear();
+    if (kills.length) await Promise.all(kills);
   });
 }
 
 // ---------- entry ----------
 
 export default function bgBash(pi: ExtensionAPI): void {
+  autoBackgroundEnabled = true;
   registerLifecycle(pi);
   registerShortcuts(pi);
   registerCooperativeSteering(pi);

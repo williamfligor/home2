@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // Runnable smoke test for the bg-bash extension.
 //   node private_dot_pi/private_agent/extensions/bg-bash/test.mjs
-//   PI_BG_MAX_LOG_MB=1 node .../test.mjs --rotate   (internal: isolated rotation check)
+//   PI_BG_RING_MB=1 node .../test.mjs --ring   (internal: isolated in-memory ring-cap check)
 //
 // Auto-discovers the pi install from (in order): the PI_INSTALL env var,
-// require.resolve of the package, or `which pi`. Tail-rotate runs in a child
-// process because the module-level MAX_LOG_BYTES reads PI_BG_MAX_LOG_MB at
+// require.resolve of the package, or `which pi`. The ring-cap check runs in a
+// child process because the module-level RING_BYTES reads PI_BG_RING_MB at
 // load and jiti caches modules by path — so we cannot reload with a smaller
 // cap in the same process that already loaded at the default.
 //
@@ -15,12 +15,11 @@
 
 import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
-import { existsSync, statSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const HERE = fileURLToPath(new URL("./", import.meta.url));
 const EXT = HERE + "index.ts";
-const LOG_DIR = "/tmp/pi-bg-bash";
 
 // ---- locate the pi install ------------------------------------------------
 // Resolve via: PI_INSTALL env -> require.resolve of the package -> `which pi`
@@ -61,9 +60,14 @@ const { createJiti } = await import(
   createRequire(import.meta.url).resolve("jiti", { paths: [`${PI}/node_modules`, PI] }),
 );
 
-// ---- isolated rotation run ------------------------------------------------
-// Invoked as: PI_BG_MAX_LOG_MB=1 node test.mjs --rotate
-if (process.argv.includes("--rotate")) {
+// ---- isolated in-memory ring-cap run -------------------------------------
+// Invoked as: PI_BG_RING_MB=1 node test.mjs --ring
+// Proves the in-memory tail ring is capped: a 3M-line producer (~24 MB) with a
+// 1 MB ring yields a jobs-output tail ≤ ~1 MB. If the ring were unbounded (the
+// old regression), `jobs output maxBytes:5_000_000` would return ~5 MB. Asking
+// for more than the cap is what distinguishes "ring capped at 1 MB" from "ring
+// let everything through".
+if (process.argv.includes("--ring")) {
   const jiti = createJiti(import.meta.url, { interopDefault: true, alias });
   const mod = await jiti.import(EXT);
   const pi = makePi();
@@ -74,10 +78,11 @@ if (process.argv.includes("--rotate")) {
   const idOf = (r) => r.content[0].text.match(/(b[0-9a-f]{8})/)[1];
   const id = idOf(await bash.execute("r", { command: "for i in $(seq 1 3000000); do echo line-$i; done", run_in_background: true }, undefined, undefined, ctx));
   await sleep(4000);
-  const sz = statSync(`${LOG_DIR}/${id}.log`).size;
-  const pass = sz < 1.2 * 1024 * 1024; // ~1MB cap holds a ~115MB producer
+  const out = await jobs.execute("ro", { action: "output", id, maxBytes: 5_000_000 }, undefined, undefined, ctx);
+  const len = Buffer.byteLength(out.content[0].text, "utf8");
+  const pass = len > 0 && len < 1.2 * 1024 * 1024; // ring cap ~1 MB holds a ~24 MB producer
   for (const h of (pi.handlers.session_shutdown || [])) h({ type: "session_shutdown", reason: "quit" });
-  console.log(`rotate  file=${sz}B  ${pass ? "PASS" : "FAIL"}  (cap 1MB)`);
+  console.log(`ring  tail=${len}B  ${pass ? "PASS" : "FAIL"}  (cap 1MB)`);
   process.exit(pass ? 0 : 1);
 }
 
@@ -96,26 +101,40 @@ check("factory exports bgBash", typeof factory === "function" && factory.name ==
 const pi = makePi();
 factory(pi);
 check("registers tools {bash, jobs}", sameSet([...pi.tools.keys()], ["bash", "jobs"]));
-check("registers commands {bg, bg-stop, bg-clear}", sameSet([...pi.commands.keys()], ["bg", "bg-stop", "bg-clear"]));
+check("registers commands {bg, bg-on, bg-off, bg-stop, bg-clear}", sameSet([...pi.commands.keys()], ["bg", "bg-on", "bg-off", "bg-stop", "bg-clear"]));
 check("registers shortcut {ctrl+shift+b} only (no ctrl+b collision)", sameSet([...pi.shortcuts.keys()], ["ctrl+shift+b"]));
-check("registers events {session_start, session_shutdown, input}", sameSet(Object.keys(pi.handlers), ["session_start", "session_shutdown", "input"]));
+check("registers events {session_shutdown, input}", sameSet(Object.keys(pi.handlers), ["session_shutdown", "input"]));
 
 const bash = pi.tools.get("bash");
 const jobs = pi.tools.get("jobs");
 const ctx = makeCtx();
 const idOf = (r) => r.content[0].text.match(/(b[0-9a-f]{8})/)[1];
 
+// 0. /bg-off disables automatic backgrounding (including the per-call timeout)
+// while explicit run_in_background remains available; /bg-on restores the default.
+await pi.commands.get("bg-off").handler({}, ctx);
+const offResult = await bash.execute("t0", { command: "sleep 0.2; echo bg-off-foreground", timeout: 0.01 }, undefined, undefined, ctx);
+check("/bg-off keeps timeout-bound commands in the foreground", offResult.content[0].text.trim() === "bg-off-foreground" && !offResult.details?.backgrounded, JSON.stringify(offResult));
+const explicitOff = await bash.execute("t0b", { command: "sleep 10", run_in_background: true }, undefined, undefined, ctx);
+const explicitOffId = idOf(explicitOff);
+check("/bg-off still honors explicit run_in_background", explicitOff.details?.backgrounded === true && explicitOffId, JSON.stringify(explicitOff.details));
+await jobs.execute("t0bk", { action: "kill", id: explicitOffId }, undefined, undefined, ctx).catch(() => {});
+await sleep(300);
+await pi.commands.get("bg-on").handler({}, ctx);
+
 // 1. run_in_background returns immediately with an id
-const r1 = await bash.execute("t1", { command: "sleep 1; echo done-bg", run_in_background: true }, undefined, undefined, ctx);
-check("run_in_background returns id+log path", /running in background with ID: b[0-9a-f]{8}/.test(r1.content[0].text) && /Output is being written to:/.test(r1.content[0].text));
+const r1 = await bash.execute("t1", { command: "sleep 2; echo done-bg", run_in_background: true }, undefined, undefined, ctx);
+check("run_in_background returns id + jobs-output hint", /running in background with ID: b[0-9a-f]{8}/.test(r1.content[0].text) && /jobs tool \(action='output'/.test(r1.content[0].text));
 const id1 = idOf(r1);
-check("run_in_background marks details.backgrounded (jobId/pid/logPath/reason)", r1.details?.backgrounded === true && /^b[0-9a-f]{8}$/.test(r1.details?.jobId ?? "") && typeof r1.details?.pid === "number" && /\.log$/.test(r1.details?.logPath ?? "") && r1.details?.reason === "spawned", JSON.stringify(r1.details));
+check("run_in_background marks details.backgrounded (jobId/pid/reason)", r1.details?.backgrounded === true && /^b[0-9a-f]{8}$/.test(r1.details?.jobId ?? "") && typeof r1.details?.pid === "number" && r1.details?.reason === "spawned", JSON.stringify(r1.details));
 
 // 2. jobs list shows [running]
 const r2 = await jobs.execute("t2", { action: "list" }, undefined, undefined, ctx);
 check("jobs list shows the bg job [running]", r2.content[0].text.includes(`${id1} `) && r2.content[0].text.includes("[running]"));
+const earlyOutput1 = await jobs.execute("t2o", { action: "output", id: id1 }, undefined, undefined, ctx);
+check("reading running output does not suppress its later completion notification", earlyOutput1.content[0].text.length > 0 && !earlyOutput1.content[0].text.includes("Unknown job"), earlyOutput1.content[0].text);
 
-// 3. fast foreground returns output, zero residue (the unlink-before-read bug)
+// 3. fast foreground returns output, zero residue (the read-before-reap ordering bug)
 const r3 = await bash.execute("t3", { command: "echo hi" }, undefined, undefined, ctx);
 check("fast foreground returns output (not '(no output)')", r3.content[0].text.trim() === "hi", JSON.stringify(r3.content[0].text));
 check("foreground result carries no backgrounded marker", !r3.details?.backgrounded, JSON.stringify(r3.details));
@@ -123,16 +142,30 @@ const r3b = await jobs.execute("t3b", { action: "list" }, undefined, undefined, 
 check("fast fg leaves no residue (no 'hi' job)", !r3b.content[0].text.includes("echo hi"));
 
 // 4. exactly one completion notification after bg finishes
-await sleep(1700);
+await sleep(2700);
 const n = pi.sent.filter((s) => s.m?.customType === "bg-job-finished").length;
 check("exactly one completion notification", n === 1, `count=${n}`);
 if (n === 1) {
   const msg = pi.sent.find((s) => s.m?.customType === "bg-job-finished");
   check("completion delivery is followUp+triggerTurn", msg.o?.deliverAs === "followUp" && msg.o?.triggerTurn === true, JSON.stringify(msg.o));
-  check("completion content names the job + exit + command + output", /completed \(exit 0\)/.test(msg.m.content) && /Command: sleep 1; echo done-bg/.test(msg.m.content) && /Output:/.test(msg.m.content));
+  check("completion content names the job + exit + command + output tail", /completed \(exit 0\)/.test(msg.m.content) && /Command: sleep 2; echo done-bg/.test(msg.m.content) && /----\n.*done-bg/s.test(msg.m.content));
 }
 const r4 = await jobs.execute("t4", { action: "list" }, undefined, undefined, ctx);
 check("jobs list after completion shows [completed] exit=0", r4.content[0].text.includes("[completed]") && r4.content[0].text.includes("exit=0"));
+
+// 4b. collapsed-view contract: a completion notification must never dump the
+// whole tail into the chat — ≤PI_BG_PREVIEW_LINES output lines + a jobs-output
+// pointer. The bound mirrors the extension's single PREVIEW_LINES setting.
+const previewLines = Number(process.env.PI_BG_PREVIEW_LINES ?? 5);
+const r4b = await bash.execute("t4b", { command: "for i in $(seq 1 12); do echo notif-line-$i; done", run_in_background: true }, undefined, undefined, ctx);
+const id4b = idOf(r4b);
+await sleep(1000);
+const note4b = pi.sent.filter((s) => s.m?.customType === "bg-job-finished" && String(s.m.content ?? "").includes(id4b)).pop();
+const tail4b = note4b ? (note4b.m.content.split("----").pop() ?? "") : "";
+const outputLines4b = tail4b.split("\n").filter((l) => l.trim() && !l.startsWith("… ("));
+check("completion notification preview is bounded to the configured preview lines", !!note4b && outputLines4b.length <= previewLines, `lines=${outputLines4b.length} (cap ${previewLines})`);
+check("completion notification preview points at jobs output for the rest", !!note4b && /jobs action='output'/.test(note4b.m.content), note4b ? JSON.stringify(note4b.m.content).slice(0, 140) : "no notification");
+await pi.commands.get("bg-clear").handler({}, ctx);
 
 // 5. error path — unknown job
 let err5 = null;
@@ -149,6 +182,15 @@ await sleep(800);
 const r6o = await jobs.execute("t6o", { action: "output", id: id6, maxBytes: 100 }, undefined, undefined, ctx);
 check("jobs output bounds tail with '…[ truncated ]' marker", r6o.content[0].text.startsWith("…[ truncated ]"));
 check("jobs output maxBytes honored", r6o.content[0].text.length <= 300, `len=${r6o.content[0].text.length}`);
+
+// 6b. P1 regression guard: a window dominated by ONE long line must keep its
+// tail (not collapse to just the truncation header, which loses all output).
+const r6b = await bash.execute("t6b", { command: "printf 'A%.0s' {1..40000}; printf 'ENDMARKER\\n'", run_in_background: true }, undefined, undefined, ctx);
+const id6b = idOf(r6b);
+await sleep(400);
+const r6bo = await jobs.execute("t6bo", { action: "output", id: id6b }, undefined, undefined, ctx);
+check("P1 readTail keeps the tail of a single long line (not just the truncation header)", r6bo.content[0].text.includes("ENDMARKER"), JSON.stringify(r6bo.content[0].text).slice(0, 60));
+await jobs.execute("t6bk", { action: "kill", id: id6b }, undefined, undefined, ctx).catch(() => {});
 
 // 7. auto-background timing: timeout:1 returns ~1000ms (the §12.4 quick-race fix)
 const t0 = Date.now();
@@ -221,6 +263,14 @@ const kidsAfter = sh(`pgrep -P ${pid15}`).trim().split("\n").filter(Boolean);
 check("BG-16 kill reaps the grandchildren too (whole group, not just the leader)", kidsAfter.length === 0, `survivors=${JSON.stringify(kidsAfter)}`);
 const l15b = (await jobs.execute("t15l2", { action: "list" }, undefined, undefined, ctx)).content[0].text;
 check("BG-16 job status after the group kill is [killed]", /\[killed\]/.test(l15b.split("\n").find((l) => l.includes(id15)) || ""));
+
+// 16b. BG-16 spec/impl reconciliation: jobs kill sets outputConsumed, so NO
+// bg-job-finished notification fires for the agent-initiated kill (the
+// immediate `Killed <id>` result already informed the agent). Lock it in.
+const notes15Before = pi.sent.filter((s) => s.m?.customType === "bg-job-finished" && String(s.m.content ?? "").includes(id15)).length;
+await sleep(400);
+const notes15After = pi.sent.filter((s) => s.m?.customType === "bg-job-finished" && String(s.m.content ?? "").includes(id15)).length;
+check("BG-16 jobs kill suppresses the redundant bg-job-finished notification", notes15After === notes15Before, `before=${notes15Before} after=${notes15After}`);
 
 // ---- research-gap round 2: BG-12 / BG-13 / BG-15 / BG-24 ----
 
@@ -306,26 +356,64 @@ try { await bash.execute("t21", { command: "echo hi" }, undefined, undefined, ct
 process.env.PATH = savedPath;
 check("BG-21 missing shell throws 'Failed to spawn bash' (no silent success)", !!err21 && /Failed to spawn bash/.test(err21), err21 || "(no error thrown)");
 
+// 21b. BG-19(b) regression guard: a genuine Esc/abort of a foreground command
+// SIGTERMs the group and the foreground call throws "Command aborted" (partial
+// output appended) — NOT a successful result carrying partial output, which the
+// model could mistake for clean completion (the pre-fix behavior).
+const ac = new AbortController();
+let err21b = null;
+let res21b = null;
+const fgP = bash.execute("t21b", { command: "echo before-cancel; sleep 10; echo after-cancel" }, ac.signal, undefined, ctx)
+  .then((r) => (res21b = r))
+  .catch((e) => (err21b = e.message));
+await sleep(500); // let `echo before-cancel` land in the ring, then cancel
+ac.abort();
+await sleep(800); // let the SIGTERM'd group die + race resolve
+await fgP;
+check("BG-19(b) aborted foreground throws (not a success result)", !!err21b && !res21b, `err=${err21b} res=${JSON.stringify(res21b?.content)}`);
+check("BG-19(b) abort error is 'Command aborted' with partial output appended", !!err21b && /Command aborted/.test(err21b) && /before-cancel/.test(err21b), err21b || "(no error)");
+check("BG-19(b) aborted foreground leaves no background job (killed, not backgrounded)", !(await jobs.execute("t21bl", { action: "list" }, undefined, undefined, ctx)).content[0].text.includes("sleep 10; echo after-cancel"));
+
 // 22. background-handoff renderer: distinct box with job status, no "Took" line
 const fakeTheme = { fg: (c, s) => `[${c}]${s}[/${c}]` };
 const fakeContext = (lastComponent) => ({ state: {}, lastComponent, invalidate() {} });
 const bgBox = bash.renderResult(
-  { content: [{ type: "text", text: "tick-1\ntick-2" }], details: { backgrounded: true, jobId: "b12345678", pid: 42, logPath: "/tmp/pi-bg-bash/b12345678.log", reason: "spawned" } },
+  { content: [{ type: "text", text: "tick-1\ntick-2" }], details: { backgrounded: true, jobId: "b12345678", pid: 42, reason: "spawned" } },
   { isPartial: false, expanded: false },
   fakeTheme,
   fakeContext(undefined),
 );
 const bgText = bgBox.render(80).join("\n");
-check("bg renderResult draws 'Running in background' + job id + log path", bgText.includes("Running in background") && bgText.includes("b12345678") && bgText.includes("/tmp/pi-bg-bash/b12345678.log"), bgText.replace(/\n/g, "⏎"));
+check("bg renderResult draws 'Running in background' + job id", bgText.includes("Running in background") && bgText.includes("b12345678"), bgText.replace(/\n/g, "⏎"));
 check("bg renderResult has no 'Took' duration line", !bgText.includes("Took"), "");
 const abBox = bash.renderResult(
-  { content: [{ type: "text", text: "tick-1" }], details: { backgrounded: true, jobId: "b87654321", pid: 43, logPath: "/tmp/x.log", reason: "timeout" } },
+  { content: [{ type: "text", text: "tick-1" }], details: { backgrounded: true, jobId: "b87654321", pid: 43, reason: "timeout" } },
   { isPartial: false, expanded: false },
   fakeTheme,
   fakeContext(undefined),
 );
 const abText = abBox.render(80).join("\n");
 check("auto-background renderResult says 'Auto-backgrounded'", abText.includes("Auto-backgrounded") && abText.includes("b87654321"), abText.replace(/\n/g, "⏎"));
+
+// 23. jobs output renderer mirrors stock bash expansion: collapsed output shows
+// a short tail plus a Ctrl-O hint; expanded output shows the complete result.
+const jobOutput = Array.from({ length: 8 }, (_, i) => `output-${i + 1}`).join("\n");
+const jobsCollapsed = jobs.renderResult(
+  { content: [{ type: "text", text: jobOutput }], details: undefined },
+  { isPartial: false, expanded: false },
+  fakeTheme,
+  fakeContext(undefined),
+);
+const jobsCollapsedText = jobsCollapsed.render(80).join("\n");
+check("jobs output collapsed renderer shows tail + Ctrl-O hint", jobsCollapsedText.includes("Ctrl-O to expand") && !jobsCollapsedText.includes("output-1") && jobsCollapsedText.includes("output-8"), jobsCollapsedText.replace(/\n/g, "⏎"));
+const jobsExpanded = jobs.renderResult(
+  { content: [{ type: "text", text: jobOutput }], details: undefined },
+  { isPartial: false, expanded: true },
+  fakeTheme,
+  fakeContext(undefined),
+);
+const jobsExpandedText = jobsExpanded.render(80).join("\n");
+check("jobs output expanded renderer shows the complete result", jobsExpandedText.includes("output-1") && jobsExpandedText.includes("output-8") && !jobsExpandedText.includes("Ctrl-O to expand"), jobsExpandedText.replace(/\n/g, "⏎"));
 
 // fire session_shutdown, assert it sweeps
 let shutdownOk = true;
@@ -335,15 +423,15 @@ for (const h of (pi.handlers.session_shutdown || [])) {
 check("session_shutdown handler runs clean", shutdownOk);
 check("session_shutdown clears the registry", [...pi.tools].length && regJobsCleared(pi), "(jobs tool is still registered by pi; check live processes instead)");
 
-// 10. tail-rotate runs in an isolated child (env-gated module constant)
-const child = spawnSync(process.execPath, [fileURLToPath(import.meta.url), "--rotate"], {
-  env: { ...process.env, PI_BG_MAX_LOG_MB: "1" },
+// 10. in-memory ring runs in an isolated child (env-gated module constant)
+const child = spawnSync(process.execPath, [fileURLToPath(import.meta.url), "--ring"], {
+  env: { ...process.env, PI_BG_RING_MB: "1" },
   encoding: "utf8",
   timeout: 30000,
 });
 const childOut = (child.stdout || "").trim();
-const rotatePass = child.status === 0 && /PASS/.test(childOut);
-check("tail-rotate caps disk (1MB cap holds a ~115MB producer)", rotatePass, childOut || `rc=${child.status} ${child.stderr?.trim()}`);
+const ringPass = child.status === 0 && /PASS/.test(childOut);
+check("in-memory ring caps output (1MB ring holds a ~24MB producer)", ringPass, childOut || `rc=${child.status} ${child.stderr?.trim()}`);
 
 // ---- summary --------------------------------------------------------------
 const failed = results.filter((r) => !r.pass);

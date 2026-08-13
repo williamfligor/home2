@@ -30,8 +30,8 @@ the feature lands.
 
 ### BG-01  Fast foreground command returns output normally with zero residue
 - Category: launch
-- Catches: phantom jobs leaking into the registry + `.log` files onto disk for commands that finished inside the 2 s quick window; a bogus job id returned for a finished command; a stray completion notification (the watcher is only attached at promotion).
-- Steps: `bash { command: "echo hi && sleep 1 && echo done" }`; then `jobs { action: "list" }`; then `ls $TMPDIR/pi-codex-bg | wc -l`.
+- Catches: phantom jobs leaking into the registry for commands that finished inside the 2 s quick window; a bogus job id returned for a finished command; a stray completion notification (the watcher is only attached at promotion).
+- Steps: `bash { command: "echo hi && sleep 1 && echo done" }`; then `jobs { action: "list" }` (no on-disk artifact to count — output is buffered in an in-memory ring per job).
 - Expected: Tool returns `hi\ndone` synchronously with no job id; `jobs list` prints `No background jobs.`; the log dir contains 0 files (the foreground `finally` unlinks its log when `!handedToBackground`).
 - Origin: codex-bash §12.1 quick-completion window + finally-block cleanup; patty 2 s quick window (§8.2); Codex short-lived path releases the id (§3.3). [CODEX-02, OPC-01a, PIBG-01]
 
@@ -39,7 +39,7 @@ the feature lands.
 - Category: run_in_background
 - Catches: the flag blocking on the foreground race instead of returning immediately; a missing output path breaking the "Read the file" recovery pattern.
 - Steps: Time `bash { command: "sleep 300", run_in_background: true, description: "long sleep" }`; then `jobs { action: "list" }`.
-- Expected: Returns in <1 s with `Command running in background with ID: <id>. Name: long sleep.` + the log path; `jobs list` shows `<id> long sleep [running]` with a pid and `0s` duration.
+- Expected: Returns in <1 s with `Command running in background with ID: <id>. Name: long sleep.` + a hint to read output via `jobs action='output'`; `jobs list` shows `<id> long sleep [running]` with a pid and `0s` duration.
 - Origin: Claude `run_in_background` "you'll be notified" contract (§4.1); patty `bash_bg` / ismailsaleekh `bg_run` immediate-id spawn (§8.1, §8.2); OpenCode `task background:true` returns `<task id state="running">` immediately (§5.1). [CODEX-03, CC-01, OPC-01b, PIBG-04]
 
 ### BG-03  Sub-quick-window timeout is honored immediately (the §12.4 quick-race regression)
@@ -80,7 +80,7 @@ the feature lands.
 - Category: injection-delivery
 - Catches: duplicate notifications (watcher refiring) or zero injection at all — the Codex failure this exists to fix (`ExecCommandEnd` is TUI-only, the model is never woken, §3.3); missing status/exit/command/output-path fields the model needs.
 - Steps: `bash { command: "sleep 2; echo done-123" }` (or `run_in_background:true`); wait 5 s; count messages with `customType === 'bg-job-finished'` and inspect the one received.
-- Expected: Exactly **1** message. Content: `Background job <id> completed (exit 0) after 2s.\nCommand: sleep 2; echo done-123\nOutput: <path>` + tail containing `done-123`. Delivery options are exactly `{ deliverAs: 'followUp', triggerTurn: true }`. No second message arrives (single `exit.then` watcher + `outputConsumed` latch).
+- Expected: Exactly **1** message. Content: `Background job <id> completed (exit 0) after 2s.\nCommand: sleep 2; echo done-123` + a `\n\n----\n` tail containing `done-123` (the in-memory ring's bounded tail; no on-disk path). Delivery options are exactly `{ deliverAs: 'followUp', triggerTurn: true }`. No second message arrives (single `exit.then` watcher + `outputConsumed` latch).
 - Origin: OpenCode §5.2 `injectBackgroundResult` wakes a new turn when idle via `runLoop()`; ismailsaleekh `notified` latch + 1 XML msg/task (§8.1); patty `outputConsumed` (§8.2); codex-bash §12.3 "exactly one completion notification … followUp, triggerTurn:true"; fixes Codex's zero injection (§3.3, §9.2). [CODEX-05, CC-07, OPC-02, PIBG-05]
 
 ### BG-08  Idle completion wakes a NEW agent turn with the full result (Cursor-trial reliability)
@@ -154,7 +154,7 @@ the feature lands.
 - Category: kill
 - Catches: Codex's #17821 gap (no single-job stop; `/stop` kills everything) and the fragile Ctrl-C-byte kill (`write_stdin` non-TTY accepts only `"\u0003"`, and models have been observed emitting the literal string — §10.2); killing only the leader while grandchildren keep running.
 - Steps: `bash { command: "sleep 300 & wait", timeout: 1 }`; note the pid + `pgrep -P <pid>` (the `sleep 300` child); `jobs { action: "kill", id: <id> }`; re-check both pids; `jobs { action: "list" }`; wait for the notification.
-- Expected: `kill` returns `Killed <id>. Output kept at <path>`. **Both** the bash leader and the `sleep 300` child are dead (SIGTERM to `-pid` group — `killProcessTree`, not leader-only). Status flips to `[killed]`. A `bg-job-finished` message arrives with `killed` in the exit line (`exitCode null` → `killed`). No `chars`/`\u0003` parameter is exposed anywhere — the literal-`"\u0003"` model pitfall is structurally avoided.
+- Expected: `kill` returns `Killed <id>. Output kept at <path>`. **Both** the bash leader and the `sleep 300` child are dead (SIGTERM to `-pid` group — `killProcessTree`, not leader-only). Status flips to `[killed]`. **No `bg-job-finished` notification arrives** — `jobs kill` set `outputConsumed` to suppress the redundant agent-initiated wake (the immediate `Killed <id>` result already informed the agent; `exitCode null` → `killed` is still reflected in `jobs list` as `[killed]`). No `chars`/`\u0003` parameter is exposed anywhere — the literal-`"\u0003"` model pitfall is structurally avoided.
 - Verified (test.mjs): `sleep 60 & wait` — live `pgrep -P` child before kill; after `jobs kill` both leader and grandchild are gone (`ps`/`pgrep` empty) and the status flips to `[killed]`.
 - Origin: Codex `write_stdin` `\u{3}` kill (§3.1, verified `pm.rs`); issue #17821 (open single-job-stop request); patty/vanillagreen SIGTERM tree kill (§8.2, §8.3); ismailsaleekh `bg_kill` (§8.1); codex-bash `killProcessTree(-pid)` (§12.1). [CODEX-08, CODEX-09, CC-12, CUR-06, PIBG-10]
 
@@ -180,7 +180,7 @@ the feature lands.
 - Category: cooperative-steering
 - Catches: THE §12.1 subtlety — the turn's abort signal must kill the process **only if no pause was requested**. Two failure directions: (a) wiring `signal→kill` unconditionally kills the very command steering just backgrounded; (b) dropping the kill branch "to be safe" leaves orphan processes on genuine Esc. Also: steering hijacking extension-originated input, or firing with no active foreground.
 - Steps: (a) `bash { command: "sleep 30", timeout: 60 }`; while it runs, type `please keep going`. (b) Repeat with a fresh `sleep 60` foreground and press Esc instead.
-- Expected: (a) Input handler returns `{ action: 'handled' }`; the turn aborts; the user text is re-delivered via `sendUserMessage(text, { deliverAs: 'followUp' })`; `jobs list` shows the job `[running]` (alive — the abort must not have killed it); it completes later and the `bg-job-finished` arrives. Messages with `event.source === 'extension'` pass through (never hijacked); firing with no active foreground is a no-op (`{ action: 'continue' }`). (b) Esc with no pause: process group SIGTERM'd; `jobs list` → `No background jobs.`; the log file is gone (job dropped + unlinked in `finally`); no notification.
+- Expected: (a) Input handler returns `{ action: 'handled' }`; the turn aborts; the user text is re-delivered via `sendUserMessage(text, { deliverAs: 'followUp' })`; `jobs list` shows the job `[running]` (alive — the abort must not have killed it); it completes later and the `bg-job-finished` arrives. Messages with `event.source === 'extension'` pass through (never hijacked); firing with no active foreground is a no-op (`{ action: 'continue' }`). (b) Esc with no pause: process group SIGTERM'd; the foreground call throws a `Command aborted` tool error (partial output appended, not a success result); `jobs list` → `No background jobs.`; the job entry (and its in-memory ring) is dropped in `finally`; no notification.
 - Origin: codex-bash §12.1 abort-signal trap + cooperative steering; patty `input`-event steering + `ctx.abort()` + re-deliver (§8.2); §12.3 verified steering behavior; Codex has no steering (§3.5). [CODEX-13, CC-17, STE-01, PIBG-12, PIBG-13]
 
 ### BG-20  Ctrl+Shift+B manually backgrounds the running command (hint + notify); idle press is a no-op
@@ -236,11 +236,11 @@ the feature lands.
 - Expected: Notification tail ≤ ~20 000 chars containing `…[ truncated ]`, never 200 000 lines. `maxBytes:200` returns ~200 bytes starting `…[ truncated ]\n` followed by whole lines; default returns ≤ 20 000 chars. Both error-free on a completed job and both set `outputConsumed` (BG-10 behavior holds after reads).
 - Origin: Codex `HeadTailBuffer` cap (§3.4); Claude ~30 000 chars inline (§4.3); ismailsaleekh `bg_logs` maxBytes ≤ 50 KB (§8.1); vanillagreen tail caps 2000/10000 (§8.3); codex-bash `OUTPUT_PREVIEW_CHARS = 20_000` (§12.1). [CODEX-11ab, CC-15, PIBG-15]
 
-### BG-26  session_shutdown SIGTERMs every running job's process tree; restart loses the registry; orphan log files remain
+### BG-26  session_shutdown SIGTERMs (then SIGKILL-escalates) every running job's process tree; restart loses the in-memory registry
 - Category: lifecycle-shutdown
-- Catches: orphans surviving session end (Codex/Cursor §3.3/§6.2; Claude "tasks killed on exit" §4.3); a crash while iterating jobs in mixed states; and the known orphan-log leak — `session_shutdown` clears the Map but never unlinks `.log` files, so `$TMPDIR/pi-codex-bg/*.log` accumulates across sessions.
-- Steps: `bash { command: "sleep 500 & wait", run_in_background: true }`; note pid + log path; trigger `session_shutdown` (quit pi / emit the event in the harness); `ps -p <pid>` and `pgrep -f "sleep 500"`; restart pi; `jobs { action: "list" }`; `ls $TMPDIR/pi-codex-bg/`.
-- Expected: The leader **and** the `sleep 500` grandchild are dead (group SIGTERM). Registry maps cleared without error (`jobs`/`foreground`/`activeToolCallId` reset; the handler only SIGTERMs `status === "running"`). After restart, `jobs list` prints `No background jobs.` (registry is in-memory — restart loses status, OpenCode §5.3 parity), **but** the pre-restart `.log` file still exists in `$TMPDIR/pi-codex-bg/` — an orphan not owned by any registry entry (the only reclaim path is a `jobs cleanup` before shutdown). Assert all three observations explicitly.
+- Catches: orphans surviving session end (Codex/Cursor §3.3/§6.2; Claude "tasks killed on exit" §4.3); a crash while iterating jobs in mixed states. (The previous orphan-log leak — `$TMPDIR/pi-codex-bg/*.log` accumulating because `session_shutdown` never unlinked files — is now structurally impossible: output is an in-memory ring per job, GC'd with the registry entry. There is no on-disk artifact.)
+- Steps: `bash { command: "sleep 500 & wait", run_in_background: true }`; note pid; trigger `session_shutdown` (quit pi / emit the event in the harness); `ps -p <pid>` and `pgrep -f "sleep 500"`; restart pi; `jobs { action: "list" }`.
+- Expected: The leader **and** the `sleep 500` grandchild are dead (group SIGTERM, escalated to SIGKILL after the grace for jobs that trap/ignore SIGTERM). Registry maps cleared without error (`jobs`/`foreground` reset; the handler only SIGTERMs `status === "running"`). After restart, `jobs list` prints `No background jobs.` (registry is in-memory — restart loses status, OpenCode §5.3 parity). There is no on-disk artifact to orphan: output lives in per-job in-memory rings, GC'd on shutdown. (The previous expected observation — a stale `.log` surviving in `$TMPDIR` — no longer applies.)
 - Origin: Codex `terminate_all_processes` (§3.4, verified `pm.rs`); Claude "tasks killed on exit" (§4.3); patty/ismailsaleekh "shutdown kills all" (§8.1, §8.2); OpenCode process-local (§5.3); codex-bash §12.1 lifecycle; §8.1 `.pi/tasks` + atomic metadata as the durability contrast. [CODEX-16, CC-13, DUR-01, PIBG-18]
 
 ---
@@ -255,6 +255,24 @@ the feature lands.
 - Verified (eval): the tool loaded in a real session carries `run_in_background` in its schema and a description containing "notified" and `run_in_background`. 3/3 runs (2025-06).
 - Origin: OpenCode "DO NOT sleep, poll, or proactively check" (§5.1); Claude `run_in_background` "you'll be notified" (§4.1); ismailsaleekh guidelines "do not sleep/bg_status to wait" (§8.1); §10.1; codex-bash §12.1 verbatim strings (lines 313–317). [CC-19, OPC-04, PIBG-16]
 
+### BG-30  `/bg-on` and `/bg-off` toggle automatic backgrounding
+- Category: control
+- Catches: the mode toggle being cosmetic, `/bg-off` still honoring the auto-background timeout, or `/bg-on` failing to restore the default. Explicit `run_in_background:true` remains available while automatic backgrounding is off; cooperative steering and the Ctrl+Shift+B shortcut are disabled in off mode.
+- Steps: Run `/bg-off`; invoke `bash { command: "sleep 0.2; echo foreground", timeout: 0.01 }`; then run `/bg-on` and invoke a long-running command with a short timeout. Also verify an explicit `run_in_background:true` call still returns a job id while off.
+- Expected: Off-mode timeout-bound commands finish in the foreground with no job id or background handoff; on-mode timeout-bound commands auto-background again; explicit background requests continue to work in either mode. `/bg` reports the current automatic-backgrounding state.
+
+### BG-31  `jobs` output uses stock-style Ctrl-O expansion
+- Category: rendering
+- Catches: the jobs renderer showing an unbounded wall of output or ignoring the expanded tool-result state. `jobs output` results should use the same short-tail preview affordance as stock `bash`.
+- Steps: Render a multi-line `jobs output` result with the tool collapsed, then expand it with Ctrl-O.
+- Expected: Collapsed rendering shows a short tail and a `Ctrl-O to expand` hint; expanded rendering shows the complete result returned by `jobs output` (still subject to the in-memory ring and requested `maxBytes` limits).
+
+### BG-32  Reading a running job does not suppress its completion notification
+- Category: delivery
+- Catches: `jobs output` marking a running job as consumed, which loses the completion wake when an early output read is empty or partial and forces the caller to poll `ps`/wait manually.
+- Steps: Start `sleep 2; echo done` in the background; call `jobs output` immediately while it is still running; do not poll; wait for the completion notification.
+- Expected: The running snapshot may be empty or partial, but a single `bg-job-finished` notification still arrives after exit. Reading a completed job may suppress its redundant notification.
+
 ---
 
 ## RED — Guards for known-unimplemented behavior (currently failing; flip when wired)
@@ -267,11 +285,11 @@ the feature lands.
 - Guard (test.mjs): a RED-guard pins the current no-skip behavior — `sleep 60` + `timeout:1` still returns `Process backgrounded as …`. Flips red the day skip rules land, forcing the suite to move to the green contract.
 - Origin: Claude Code §4.2 skip rules verbatim (commands starting with `sleep`, containing `git` anywhere, unparseable compound commands killed at timeout); §9.3. [CC-05]
 
-### BG-29 (RED)  Background log is tail-rotated at N MB; the process keeps running, the job stays `[running]`, `jobs output` still tails the recent end
+### BG-29  Background output is held in a bounded in-memory tail ring; the process keeps running, the job stays `[running]`, `jobs output` still tails the recent end
 - Category: limits-output-cap
-- Catches: `MAX_LOG_BYTES = 50 * 1024 * 1024` is declared with the comment `"hard output cap; oversized bg jobs are killed"` but is **never referenced** anywhere in spawn/watcher paths (grep-confirmed: single hit at the declaration). A backgrounded `tail -f` / `yes` / chatty dev server in a loop runs forever and writes forever → `$TMPDIR/pi-codex-bg/*.log` grows unbounded and fills the disk. Guards both the current silent non-enforcement and a rotation-fails-to-fire regression. The intended design (decided against the surveyed kill-at-N harnesses) is **tail-rotate, not kill**: the built-in pi `bash` tool proves cap-on-read (no process kill) is enough for foreground work — codex-bash extends that to background work by keeping only the last N MB on disk so a long-lived chatty job can stay `[running]` without filling anything.
-- Steps: `bash { command: "for i in $(seq 1 1000000); do echo line-$i; done; sleep 5", run_in_background: true }` (run with `timeout: 120` to avoid racing the auto-background); poll `stat -c%s $TMPDIR/pi-codex-bg/<id>.log` every 2 s during the run and after completion; `jobs { action: "list" }`; `jobs { action: "output", id: <id> }`.
-- Expected (intended): The log file is **tail-rotated** at the configured cap (e.g. `MAX_LOG_BYTES = 50 MB`): once it exceeds the cap the head is discarded and only the last ~50 MB is kept, so `stat` shows the file size oscillating at/below the cap rather than growing to ~38 GB (1 000 000 lines × ~38 bytes). The job stays `[running]` throughout — **it is never killed for being chatty** (the point of backgrounding is "let it keep running while I work," so a dev server logging 200 MB over an hour shouldn't die). `jobs output` returns the recent tail (`line-999950` … `line-1000000`) with the `…[ truncated ]` marker; the completion notification (when the loop ends) carries the bounded tail. The process exits on its own; the cap only bounds disk. **As-is, `MAX_LOG_BYTES` is dead config, the log grows to ~38 GB, and the notification carries it truncated to `OUTPUT_PREVIEW_CHARS` → the test is RED and pins current behavior so it flips when rotation is wired.**
+- Catches: a backgrounded `tail -f` / `yes` / chatty dev server in a loop running forever and buffering forever → unbounded RAM. The intended design (decided against the surveyed kill-at-N harnesses) is **cap-in-memory, not kill and not on-disk**: the built-in pi `bash` tool proves cap-on-read (no process kill) is enough for foreground work — bg-bash extends that to background work by keeping only the last N MB *in a per-job ring* so a long-lived chatty job can stay `[running]` without filling disk or RAM. (Previously RED: the on-disk `PumpLog` existed to tail-rotate a file, with all the rotation-race/flush/reopen machinery that entailed; the ring replaces it and makes the disk-fill class of bug structurally impossible.)
+- Steps: `bash { command: "for i in $(seq 1 3000000); do echo line-$i; done", run_in_background: true }` with `PI_BG_RING_MB=1`; after it produces, `jobs { action: "output", id: <id>, maxBytes: 5000000 }`; `jobs { action: "list" }`.
+- Expected: The in-memory ring is capped at `RING_BYTES` (`PI_BG_RING_MB`, default 2 MB): once it exceeds the cap the head chunks are evicted and only the last ~N MB is held, so `jobs output maxBytes:5000000` returns ≤ ~N MB (the live test asserts ≤1.2 MB for `PI_BG_RING_MB=1`), not the full ~24 MB producer. The job stays `[running]` throughout — **it is never killed for being chatty** (the point of backgrounding is "let it keep running while I work," so a dev server logging 200 MB over an hour shouldn't die; its ring just holds the most recent 2 MB). `jobs output` (default `maxBytes`) returns the recent tail with the `…[ truncated ]` marker; the completion notification carries the bounded tail. The process exits on its own; the cap only bounds RAM (reclaimed when the job entry is dropped — foreground finish, `/bg-clear`, session shutdown).
 - Origin: codex-bash §12.1 `MAX_LOG_BYTES` comment vs. dead config (source-verified); pi built-in `bash` `OutputAccumulator` `maxRollingBytes` rolling tail + temp-file spill (cap-on-read, no process kill) as the design precedent (`output-accumulator.js`; `truncate.js` `DEFAULT_MAX_BYTES = 50*1024`, `DEFAULT_MAX_LINES = 2000`); contrast kill-at-N harnesses — Codex `HeadTailBuffer` 1 MiB clause §3.4; ismailsaleekh 20 MB → SIGTERM §8.1; patty 100 MB → kill §8.2; Claude 5 GB §4.3; vanillagreen 1 MB buffer §8.3. [CODEX-11c, CC-16, LIM-01]
 
 ---
@@ -291,7 +309,7 @@ Aggregated from all four lanes' gap notes. These are future test cases to add wh
 9. **`/ps` and `/stop` user commands** (§12.6.2) — user surface is shortcut-only today; Codex `/stop`-kills-all and #17821 workaround untestable.
 10. **`yield_time_ms` clamping** (Codex 250–30 000 ms, empty polls 5 000–300 000, verified `ue_mod.rs`, §3.1) — codex-bash's `timeout` seconds param is unclamped: `timeout:0`/negative yields degenerate instant-background; no clamp to test.
 11. **ismailsaleekh extras** — 3 s SIGTERM→SIGKILL grace, 100-task recent ring, EventBus channels, attested `pi --mode json` child variant with hard-disabled notifications, XML message shape (codex-bash sends plain text), telemetry wrapper (§8.1). None implemented.
-12. **patty 24 h stale-log sweep** (§8.2) — no sweep; BG-26 documents but does not reclaim orphan logs.
+12. **patty 24 h stale-log sweep** (§8.2) — N/A: there is no on-disk log to sweep (output is a per-job in-memory ring, GC'd on job drop/shutdown). BG-26 covered the prior orphan-log leak, now structurally impossible.
 13. **OpenCode background *subagents*** (`task background:true`, `subagent_type`, `subagent_depth` nesting, §5.1/§5.3) — codex-bash backgrounds commands only; no subagent tool, so nesting-depth and subagent-scope-kill have no analog.
 14. **Devin managed Devins** (child sessions in isolated VMs, ACU limits, scheduled self-messages, confidence-score approval gating, REST v3/MCP event timeline, §7.1/§7.2) — none of the child-session, gating, or event-timeline machinery exists.
 15. **Claude env toggles** `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` / `CLAUDE_AUTO_BACKGROUND_TASKS` (§4.2) — no env config exists; `DEFAULT_TIMEOUT_MS` is a hard constant, only the per-call `timeout` is configurable.

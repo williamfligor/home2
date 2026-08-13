@@ -1,0 +1,2 @@
+# pi dev-run artifacts (subagent missions, etc.) must not ship with the extension
+.pi/
