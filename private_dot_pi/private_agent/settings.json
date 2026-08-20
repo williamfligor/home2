@@ -1,6 +1,6 @@
 {
   "defaultProvider": "opencode-go",
-  "defaultModel": "deepseek-v4-flash",
+  "defaultModel": "gpt-5.6-luna",
   "theme": "light",
   "enableSkillCommands": true,
   "compaction": {
@@ -10,12 +10,13 @@
   },
   "retry": {
     "enabled": true,
-    "maxRetries": 3
+    "maxRetries": 99
   },
   "lastChangelogVersion": "1.0.0",
   "packages": [
     "npm:@ff-labs/pi-fff",
     "npm:@howaboua/pi-skill-anti-ai-copy",
+    "npm:@richardgill/pi-background-bash",
     "npm:pi-powerline-footer",
     "npm:pi-rewind",
     "npm:pi-smart-fetch",
@@ -23,7 +24,8 @@
     "npm:pi-vimmode",
     {
       "source": "~/.config/nono/packages/nolabs-ai/pi"
-    }
+    },
+    "npm:pi-goal-x"
   ],
   "defaultThinkingLevel": "high",
   "hideThinkingBlock": true,
@@ -51,5 +53,6 @@
     }
   },
   "showHardwareCursor": true,
-  "tuiMode": "regular"
+  "tuiMode": "regular",
+  "showCacheMissNotices": true
 }
