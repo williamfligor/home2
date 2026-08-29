@@ -112,6 +112,13 @@ rm -rf "$WORK"
    source ("a tub of cornstarch", "a splash"), say so in Notes rather than
    inventing a number.
 
+   **Don't put words in the creator's mouth.** Only quote the narration when
+   you can point at the exact transcript line — never construct a "quote" or
+   a "the video says X" from memory of the gist. If you're paraphrasing an
+   aside (e.g. "I didn't have enough cream cheese, so I grated the rest of my
+   cheddar"), make sure the paraphrase says what the creator actually did,
+   not advice you wish they'd given.
+
 6. **Not-a-recipe guard:** if the video turns out not to be a cooking/food
    recipe at all (a mukbang, a kitchen tour, an ad), don't force a recipe out
    of it. Say plainly: *"This video does not appear to contain a recipe."*
