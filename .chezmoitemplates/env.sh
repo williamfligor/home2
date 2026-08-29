@@ -26,3 +26,7 @@ else
 fi
 
 export YSU_MESSAGE_POSITION="after"
+
+# nono: don't ask to save profile rules on sandbox exit, but keep printing
+# the denial list (the save prompt is separate from the diagnostic footer).
+export NONO_NO_SAVE_PROMPT=1
