@@ -4,4 +4,6 @@ set -euxo pipefail
 
 pi update
 pi update --extensions
-bash "$HOME/.local/share/chezmoi/.chezmoiscripts/run_onchange_after_99-pi-extensions.sh"
+# Install any new extension dependencies (the post-tools bootstrap hook does this
+# on bootstrap; this covers the case where an extension changed post-bootstrap).
+"$HOME/.local/bin/pi-ext-deps"
