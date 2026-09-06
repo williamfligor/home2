@@ -169,6 +169,7 @@ pandoc = "latest"
 "~/.config/mise/tasks/bootstrap-ssh-key" = { source = "config/mise/tasks/bootstrap-ssh-key", mode = "symlink" }
 "~/.config/mise/tasks/build-autossh" = { source = "config/mise/tasks/build-autossh", mode = "symlink" }
 "~/.config/mise/tasks/fetch-grill-me" = { source = "config/mise/tasks/fetch-grill-me", mode = "symlink" }
+"~/.config/mise/tasks/install-macos-apps" = { source = "config/mise/tasks/install-macos-apps", mode = "symlink" }
 
 # Pi agent files — file-level only. ~/.pi/agent/{auth.json,sessions,git,tmp,npm,
 # pi-web.sqlite,extensions/*/node_modules} are runtime state and stay unmanaged.

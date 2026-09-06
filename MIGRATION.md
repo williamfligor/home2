@@ -185,8 +185,11 @@ Everything below is committed on `main` and exercised by the green `bash .test.s
   `fetch-grill-me` moved from `local/bin` to `config/mise/tasks/` (as `#MISE` file-tasks,
   discovered from `~/.config/mise/tasks`), and `[tasks.bootstrap]` now runs them via
   `depends = [...]` (verified: `mise bootstrap` executes file-task deps after dotfiles
-  apply). `local/bin` keeps only PATH scripts (`install-macos-apps` is still a PATH
-  executable because mac tool `postinstall` calls it as a bare command).
+  apply). `install-macos-apps` also became a file-task (config/mise/tasks) since it's tightly
+  mise-coupled: mac tool `postinstall` now runs `$HOME/.local/bin/mise run install-macos-apps
+  <app>` (absolute mise path — no PATH dep; the task env provides uv + mise, and
+  `MISE_TOOL_INSTALL_PATH` propagates so install_one works). `local/bin` is now purely PATH
+  helper scripts (16): the pi-ext-deps hook + 14 user helpers.
 
 Open items still apply: Termux `mise.android.toml` requires `MISE_ENV=android` (mise has no
 android platform env); `min_version` is pinned to the Docker-validated 2026.9.1 (tested floor,
