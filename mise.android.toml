@@ -1,0 +1,11 @@
+# Termux/Android configuration.
+#
+# mise has no android platform env — the docs list only linux/macos/windows for
+# {os}, and Termux may even report os=linux. This file therefore loads ONLY via
+# an explicit MISE_ENV=android, set on the Termux machine itself (for example in
+# that machine's own shell env: `export MISE_ENV=android` before mise runs).
+# See MIGRATION.md decision #12.
+
+[dotfiles]
+"~/.termux/colors.properties" = { source = "private_dot_termux/private_colors.properties", mode = "symlink" }
+"~/.termux/termux.properties" = { source = "private_dot_termux/private_termux.properties", mode = "symlink" }

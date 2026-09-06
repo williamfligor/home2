@@ -1,0 +1,13 @@
+# mise early-init config — loaded before mise.toml / platform env files.
+#
+# auto_env makes platform-specific config files (mise.linux.toml, mise.macos.toml,
+# mise.linux-x64.toml, …) auto-load based on the current OS/arch. Since it controls
+# config *discovery*, it must be set here (early-init) or via the environment —
+# setting it in mise.toml is too late (see MIGRATION.md doc-verification log).
+#
+# Note: mise 2026.9.1 (the version pinned by min_version) does not yet read this
+# file's settings for discovery in all contexts; the equivalent MISE_AUTO_ENV=true
+# is exported in ~/.config/zsh/env.sh so platform files load on every shell.
+
+[settings]
+auto_env = true

@@ -38,7 +38,7 @@ $RUNNER run --rm chezmoi-test zsh -ic '
     fi
 
     echo "[2] mise tools installed..."
-    for tool in fd rg eza bat fzf tmux zoxide delta; do
+    for tool in fd rg eza bat fzf tmux delta; do
         if command -v "$tool" &>/dev/null; then
             echo "  ✓ $tool ($(which "$tool"))"
         else

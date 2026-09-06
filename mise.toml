@@ -1,0 +1,206 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Global mise configuration for williamfligor/home2 (chezmoi → mise bootstrap).
+#
+# With `mise bootstrap --from-git williamfligor/home2 --yes`, this repo is cloned
+# into $MISE_CONFIG_DIR (~/.config/mise) and THIS file becomes the global config.
+# Relative [dotfiles] sources resolve against this file's directory (the clone),
+# so the same repo works identically on any machine.
+#
+# Layout:
+#   mise.toml          shared: [tools], [settings], [dotfiles], [tasks.bootstrap], [bootstrap.*]
+#   mise.macos.toml    macOS-only (auto_env): mac .app bundles, ~/Library dotfiles
+#   mise.linux.toml    Linux-only (auto_env) — currently empty placeholder
+#   mise.android.toml  Termux-only — requires explicit MISE_ENV=android (mise has no
+#                      android platform env; docs list only linux/macos/windows)
+#   .miserc.toml       early-init: auto_env
+#   install.sh         curl mise + mise bootstrap --from-git
+#
+# See MIGRATION.md for the full migration plan and verification log.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Validated on 2026.9.1 in the Docker smoke test: `mise bootstrap` + `bootstrap dotfiles`
+# subcommands present; MISE_AUTO_ENV works. Do not lower.
+min_version = "2026.9.1"
+
+[settings]
+go_set_gobin = true
+always_keep_download = true
+# Symlink dotfiles by default (file-level only; never whole stateful dirs).
+dotfiles.default_mode = "symlink"
+
+# ── Tools (shared across macOS / Linux / Termux) ─────────────────────────────
+[tools]
+# Runtimes
+go = "latest"
+node = "lts"
+rust = "latest"
+uv = "latest"
+
+# Shell & terminal
+bat = "latest"
+eza = "latest"
+fd = "latest"
+fzf = "latest"
+ripgrep = "latest"
+tmux = "latest"
+yazi = "latest"
+zellij = "latest"
+"github:neurosnap/zmx" = "latest"
+
+# Development
+ast-grep = "latest"
+delta = "latest"
+difftastic = "latest"
+glab = "latest"
+gh = "latest"
+lazygit = "latest"
+neovim = "latest"
+yq = "latest"
+"antigravity-cli" = "latest"
+"github:simeji/jid" = "latest"
+"github:tree-sitter/tree-sitter" = "latest"
+"npm:@earendil-works/pi-coding-agent" = "latest"
+"npm:@tobilu/qmd" = { version = "latest", npm_args = "--ignore-scripts=false" }
+
+# DevOps & containers
+dive = "latest"
+lazydocker = "latest"
+
+# Sandboxing
+# Pinned deliberately until nono hits 1.0: tool-sandbox/network behaviour
+# changes between releases (v0.71: allow_all IPC crash, CONNECT 443-only).
+"github:nolabs-ai/nono" = "0.71.0"
+
+# Documentation & writing
+pandoc = "latest"
+"github:charmbracelet/glow" = "latest"
+"github:tldr-pages/tlrc" = "latest"
+
+# Network & diagnostics
+"github:fujiapple852/trippy" = "latest"
+"github:ramonvermeulen/whosthere" = "latest"
+
+# Zsh plugins (commit-hash pinned oh-my-zsh; tag-following rest)
+"http:oh-my-zsh" = {
+  version = "0.0.1",
+  url = "https://github.com/ohmyzsh/ohmyzsh/archive/62afbdebb96bf91c044a92b75d86f85a67da67a7.zip",
+  strip_components = 1,
+}
+
+"http:zsh-syntax-highlighting" = {
+  version = "0.8.0",
+  url = "https://github.com/zsh-users/zsh-syntax-highlighting/archive/refs/tags/{{ version }}.tar.gz",
+  strip_components = 1,
+}
+
+"http:zsh-you-should-use" = {
+  version = "1.11.1",
+  url = "https://github.com/MichaelAquilina/zsh-you-should-use/archive/refs/tags/{{ version }}.tar.gz",
+  strip_components = 1,
+}
+
+"http:powerlevel10k" = {
+  version = "latest",
+  url = "https://github.com/romkatv/powerlevel10k/archive/v{{ version }}.tar.gz",
+  strip_components = 1,
+  version_list_url = "https://api.github.com/repos/romkatv/powerlevel10k/releases/latest",
+  version_json_path = ".tag_name",
+}
+
+# Source-compiled tools
+# Official upstream (GitHub mirror only has up to 1.4f)
+"http:autossh" = {
+  version = "1.4g",
+  url = "https://www.harding.motd.ca/autossh/autossh-{{ version }}.tgz",
+  strip_components = 1,
+}
+
+# ── Dotfiles (shared; file-level symlinks only) ──────────────────────────────
+# Sources are relative to this file's directory (the clone), per the docs:
+# "Relative explicit sources resolve against the directory of the config file
+# that declares the entry."
+# Runtime state trees (~/.config/nvim writes lazy-lock.json; ~/.pi writes
+# sqlite/node_modules; ~/.ssh/sockets) are never declared/linked.
+[dotfiles]
+# Shell
+"~/.dircolors" = { source = "dot_dircolors", mode = "symlink" }
+"~/.p10k.zsh" = { source = "dot_p10k.zsh", mode = "symlink" }
+"~/.tmux.conf" = { source = "dot_tmux.conf", mode = "symlink" }
+"~/.zshrc.d/10-mise-plugin.zsh" = { source = "dot_zshrc.d/10-mise-plugin.zsh", mode = "symlink" }
+"~/.zshrc.d/50-nono.zsh" = { source = "dot_zshrc.d/50-nono.zsh", mode = "symlink" }
+"~/.zshrc.d/90-history-backup.zsh" = { source = "dot_zshrc.d/90-history-backup.zsh", mode = "symlink" }
+
+# Shared app config
+"~/.config/bat/config" = { source = "dot_config/bat/config", mode = "symlink" }
+"~/.config/bottom/bottom.toml" = { source = "dot_config/bottom/bottom.toml", mode = "symlink" }
+"~/.config/ghostty/config" = { source = "dot_config/ghostty/config", mode = "symlink" }
+"~/.config/git/ignore" = { source = "dot_config/git/ignore", mode = "symlink" }
+"~/.config/nono/profiles/pi.json" = { source = "dot_config/nono/profiles/pi.json", mode = "symlink" }
+"~/.config/yazi/init.lua" = { source = "dot_config/yazi/init.lua", mode = "symlink" }
+"~/.config/yazi/keymap.toml" = { source = "dot_config/yazi/keymap.toml", mode = "symlink" }
+"~/.config/yazi/plugins/confirm-quit.yazi/main.lua" = { source = "dot_config/yazi/plugins/confirm-quit.yazi/main.lua", mode = "symlink" }
+"~/.config/yazi/plugins/folder-rules.yazi/main.lua" = { source = "dot_config/yazi/plugins/folder-rules.yazi/main.lua", mode = "symlink" }
+"~/.config/yazi/plugins/smart-tab.yazi/main.lua" = { source = "dot_config/yazi/plugins/smart-tab.yazi/main.lua", mode = "symlink" }
+"~/.config/zellij/config.kdl" = { source = "dot_config/zellij/config.kdl", mode = "symlink" }
+
+# Neovim (file-level: nvim writes lazy-lock.json next to these)
+"~/.config/nvim/init.lua" = { source = "dot_config/nvim/init.lua", mode = "symlink" }
+"~/.config/nvim/lua/config/autocmds.lua" = { source = "dot_config/nvim/lua/config/autocmds.lua", mode = "symlink" }
+"~/.config/nvim/lua/config/keymaps.lua" = { source = "dot_config/nvim/lua/config/keymaps.lua", mode = "symlink" }
+"~/.config/nvim/lua/config/lazy.lua" = { source = "dot_config/nvim/lua/config/lazy.lua", mode = "symlink" }
+"~/.config/nvim/lua/config/options.lua" = { source = "dot_config/nvim/lua/config/options.lua", mode = "symlink" }
+"~/.config/nvim/lua/plugins/init.lua" = { source = "dot_config/nvim/lua/plugins/init.lua", mode = "symlink" }
+
+# ~/.local/bin — one symlink per executable (keeps each file's +x)
+"~/.local/bin" = { source = "dot_local/bin", mode = "symlink-each" }
+
+# SSH — config file only; keys stay per-machine, sockets/ is runtime state
+"~/.ssh/config" = { source = "private_dot_ssh/config", mode = "symlink" }
+
+# Mise global tasks (task files; discovered from ~/.config/mise/tasks)
+"~/.config/mise/tasks/update-pi" = { source = "dot_config/mise/tasks/update-pi", mode = "symlink" }
+"~/.config/mise/tasks/update-pi-summary" = { source = "dot_config/mise/tasks/update-pi-summary", mode = "symlink" }
+
+# Pi agent files — file-level only. ~/.pi/agent/{auth.json,sessions,git,tmp,npm,
+# pi-web.sqlite,extensions/*/node_modules} are runtime state and stay unmanaged.
+"~/.pi/agent/agents/researcher.md" = { source = "private_dot_pi/private_agent/agents/researcher.md", mode = "symlink" }
+"~/.pi/agent/extensions/answer.ts" = { source = "private_dot_pi/private_agent/extensions/answer.ts", mode = "symlink" }
+"~/.pi/agent/extensions/matplotlib-agg.ts" = { source = "private_dot_pi/private_agent/extensions/matplotlib-agg.ts", mode = "symlink" }
+"~/.pi/agent/extensions/notify.ts" = { source = "private_dot_pi/private_agent/extensions/notify.ts", mode = "symlink" }
+"~/.pi/agent/extensions/pi-tool-display/config.json" = { source = "private_dot_pi/private_agent/extensions/pi-tool-display/config.json", mode = "symlink" }
+"~/.pi/agent/extensions/review.ts" = { source = "private_dot_pi/private_agent/extensions/review.ts", mode = "symlink" }
+"~/.pi/agent/extensions/sandbox.json" = { source = "private_dot_pi/private_agent/extensions/sandbox.json", mode = "symlink" }
+"~/.pi/agent/extensions/slash-guard.ts" = { source = "private_dot_pi/private_agent/extensions/slash-guard.ts", mode = "symlink" }
+"~/.pi/agent/extensions/sort-packages.ts" = { source = "private_dot_pi/private_agent/extensions/sort-packages.ts", mode = "symlink" }
+"~/.pi/agent/extensions/tools.ts" = { source = "private_dot_pi/private_agent/extensions/tools.ts", mode = "symlink" }
+"~/.pi/agent/extensions/uv.ts" = { source = "private_dot_pi/private_agent/extensions/uv.ts", mode = "symlink" }
+"~/.pi/agent/extensions/web-gate.ts" = { source = "private_dot_pi/private_agent/extensions/web-gate.ts", mode = "symlink" }
+"~/.pi/agent/extensions/web-search.ts" = { source = "private_dot_pi/private_agent/extensions/web-search.ts", mode = "symlink" }
+"~/.pi/agent/extensions/whimsical.ts" = { source = "private_dot_pi/private_agent/extensions/whimsical.ts", mode = "symlink" }
+"~/.pi/agent/models.json" = { source = "private_dot_pi/private_agent/models.json", mode = "symlink" }
+"~/.pi/agent/pi-vcc-config.json" = { source = "private_dot_pi/private_agent/pi-vcc-config.json", mode = "symlink" }
+"~/.pi/agent/prompts/brainstorm.md" = { source = "private_dot_pi/private_agent/prompts/brainstorm.md", mode = "symlink" }
+"~/.pi/agent/prompts/execute-plan.md" = { source = "private_dot_pi/private_agent/prompts/execute-plan.md", mode = "symlink" }
+"~/.pi/agent/prompts/implement-and-review.md" = { source = "private_dot_pi/private_agent/prompts/implement-and-review.md", mode = "symlink" }
+"~/.pi/agent/prompts/implement.md" = { source = "private_dot_pi/private_agent/prompts/implement.md", mode = "symlink" }
+"~/.pi/agent/prompts/scout-and-plan.md" = { source = "private_dot_pi/private_agent/prompts/scout-and-plan.md", mode = "symlink" }
+"~/.pi/agent/settings.json" = { source = "private_dot_pi/private_agent/settings.json", mode = "symlink" }
+"~/.pi/agent/skills/resolve-chezmoi-diff/SKILL.md" = { source = "private_dot_pi/private_agent/skills/resolve-chezmoi-diff/SKILL.md", mode = "symlink" }
+"~/.pi/agent/skills/review-git-status-diff/SKILL.md" = { source = "private_dot_pi/private_agent/skills/review-git-status-diff/SKILL.md", mode = "symlink" }
+"~/.pi/agent/skills/uv-package-manager/README.md" = { source = "private_dot_pi/private_agent/skills/uv-package-manager/README.md", mode = "symlink" }
+"~/.pi/agent/skills/uv-package-manager/references/advanced-patterns.md" = { source = "private_dot_pi/private_agent/skills/uv-package-manager/references/advanced-patterns.md", mode = "symlink" }
+"~/.pi/agent/skills/uv-package-manager/SKILL.md" = { source = "private_dot_pi/private_agent/skills/uv-package-manager/SKILL.md", mode = "symlink" }
+"~/.pi/agent/skills/uv-package-manager/uv-package-manager/.keep" = { source = "private_dot_pi/private_agent/skills/uv-package-manager/uv-package-manager/.keep", mode = "symlink" }
+"~/.pi/agent/skills/video-to-recipe/scripts/download.py" = { source = "private_dot_pi/private_agent/skills/video-to-recipe/scripts/download.py", mode = "symlink" }
+"~/.pi/agent/skills/video-to-recipe/scripts/ocr-extraction.py" = { source = "private_dot_pi/private_agent/skills/video-to-recipe/scripts/ocr-extraction.py", mode = "symlink" }
+"~/.pi/agent/skills/video-to-recipe/scripts/transcribe.py" = { source = "private_dot_pi/private_agent/skills/video-to-recipe/scripts/transcribe.py", mode = "symlink" }
+"~/.pi/agent/skills/video-to-recipe/SKILL.md" = { source = "private_dot_pi/private_agent/skills/video-to-recipe/SKILL.md", mode = "symlink" }
+
+# ── Bootstrap (filled in by porting tasks) ───────────────────────────────────
+# [tasks.bootstrap]   autossh mtime-guarded build, ssh-keygen, grill-me fetch
+# [bootstrap.repos]   whole-repo skills (avoid-ai-writing, humanizer)
+# [bootstrap.hooks]   post-tools (pi extensions npm install)
+# [bootstrap.mise_shell_activate] — unused; shell activation lives in env.sh
+[tasks.bootstrap]
+[bootstrap.repos]
+[bootstrap.hooks]

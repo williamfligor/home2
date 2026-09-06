@@ -1,0 +1,11 @@
+# Linux-only configuration — loaded automatically when auto_env is active and
+# the OS is linux (`{os}` = linux).
+#
+# Currently a placeholder: nothing Linux-exclusive exists yet.
+# IMPORTANT: mise has no android platform env, and Termux may report os=linux,
+# so keep this file empty — anything here would also apply on Termux.
+# Termux-specific config goes in mise.android.toml (selected via MISE_ENV=android).
+
+[tools]
+
+[dotfiles]
