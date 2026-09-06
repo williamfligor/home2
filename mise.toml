@@ -13,7 +13,7 @@
 #   mise.android.toml  Termux-only — requires explicit MISE_ENV=android (mise has no
 #                      android platform env; docs list only linux/macos/windows)
 #   .miserc.toml       early-init: auto_env
-#   install.sh         curl mise + mise bootstrap --from-git
+#   install.sh         curl mise + clone into ~/.config/mise + mise bootstrap --yes
 #
 # See MIGRATION.md for the full migration plan and verification log.
 # ─────────────────────────────────────────────────────────────────────────────

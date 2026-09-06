@@ -5,7 +5,7 @@ keeping mise + dotfiles in the same repo. Target scope: **macOS + Linux, zsh onl
 windows, no bash**.
 
 > Status: **IMPLEMENTED + Docker-validated (2026-09-06).** Plan was reviewed by a fresh-context
-> reviewer (2026-09-06), then implemented as commits d32a2a1…8d309d0 on `main` and validated
+> reviewer (2026-09-06), then implemented as commits d32a2a1…531460a on `main` and validated
 > end-to-end in Docker (`bash .test.sh` green: bootstrap + mise + nvim smokes). The repo is now
 > the mise global config; the live-machine cutover below is all that remains.
 > `[x]` = doc-verified via mise.jdx.dev; empirical results in the implementation log.
