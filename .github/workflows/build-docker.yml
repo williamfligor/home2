@@ -26,7 +26,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/.buildx-cache
-          key: buildx-${{ runner.os }}-${{ hashFiles('.Dockerfile', 'dot_config/mise/config.toml') }}
+          # Config files drive the cached tool-install layer; the repo clone at
+          # ~/.config/mise mirrors the post-migration layout (config.toml merged
+          # into repo-root mise.toml per decision #10).
+          key: buildx-${{ runner.os }}-${{ hashFiles('.Dockerfile', '.dockerignore', 'mise.toml', 'mise.linux.toml', 'mise.macos.toml', 'mise.android.toml', '.miserc.toml') }}
           restore-keys: |
             buildx-${{ runner.os }}-
 

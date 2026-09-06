@@ -33,6 +33,16 @@
           "reasoning": false
         }
       ]
+    },
+    "opencode-go": {
+      "modelOverrides": {
+        "deepseek-v4-flash": {
+          "maxTokens": 131072
+        },
+        "deepseek-v4-pro": {
+          "maxTokens": 131072
+        }
+      }
     }
   }
 }
