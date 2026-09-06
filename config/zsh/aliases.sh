@@ -34,3 +34,13 @@ alias zl='zmx-local'
 # pi
 alias pino="pi --no-session"
 alias piw="pi --web-on"
+
+# mise bootstrap dotfiles (replaces the chezmoi cz/cza/ccd era)
+# full preview-and-capture workflow: status / diff / apply / unapply / add / edit
+alias mb='mise bootstrap'
+alias mbs='mise bootstrap dotfiles status'
+alias mbd='mise bootstrap dotfiles diff'
+alias mba='mise bootstrap dotfiles apply'
+alias mbu='mise bootstrap dotfiles unapply'
+alias mbadd='mise bootstrap dotfiles add'
+alias mbed='mise bootstrap dotfiles edit'

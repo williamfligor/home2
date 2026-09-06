@@ -162,6 +162,9 @@ Everything below is committed on `main` and exercised by the green `bash .test.s
   files `mise.{macos,linux,android}.toml`; `.miserc.toml` (forward-compat).
 - Dotfiles de-templated to static files; shared aliases/functions/env → `~/.config/zsh/*.sh`;
   dead `cz`/`cza`/`ccd()` removed; `dot_config/mise/config.toml` deleted (decision #10).
+  Replaced with `mb*` aliases in `config/zsh/aliases.sh`: `mb` = `mise bootstrap`, `mbs` =
+  `mise bootstrap dotfiles status`, `mbd` = diff, `mba` = apply, `mbu` = unapply, `mbadd` =
+  add, `mbed` = edit (same-prefix naming as the old `cz`/`cza` aliases).
 - Scripts ported (final task + hooks); skill repos via `[bootstrap.repos]`; grill-me task.
 - `install.sh`, rewritten `.test.sh`/`.Dockerfile` (which drives `install.sh` — the real
   fresh-machine script — against the local checkout), `.github/workflows` cache key,
