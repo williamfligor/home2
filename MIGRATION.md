@@ -203,6 +203,13 @@ Everything below is committed on `main` and exercised by the green `bash .test.s
   `~/.config/nono/profiles`, `~/.pi/agent`, `~/.local/bin` — still file-level, unmanaged
   neighbors preserved); individual links only for $HOME-root dotfiles and `~/.ssh/config`.
   Verified: apply reconciles individual→dir links with `--force` once; fresh machines clean.
+- **[tools] lazy set**: 15 niche/dev-toolchain tools marked `lazy = true` (installed on
+  first invocation via shim, not at bootstrap): go (lazy_bins go/gofmt), rust, tree-sitter,
+  ast-grep, dive, lazydocker, glab, jid, trippy (lazy_bins trip), whosthere, antigravity-cli,
+  qmd, pandoc, difftastic, zmx. `lazygit` stays eager (user's call). Verified on 2026.9.1:
+  `mise install` skips lazy tools and the shim triggers on-demand install. Core runtime
+  (node, uv, pi-coding-agent, nono), shell tools (bat/eza/fd/fzf/rg/tmux/yazi/zellij/delta/gh/
+  neovim/yq/glow/tlrc), zsh plugins, and the mac .app bundles stay eager.
 
 Open items still apply: Termux `mise.android.toml` requires `MISE_ENV=android` (mise has no
 android platform env); `min_version` is pinned to the Docker-validated 2026.9.1 (tested floor,
