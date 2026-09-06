@@ -153,15 +153,6 @@ pandoc = { version = "latest", lazy = true }
 # idempotent (key exists / mtime guard / sha marker). `{{ config_root }}` is the
 # clone dir (global config root), available in task/hook templates.
 
-[tasks.bootstrap]
-# Runs the machine-setup tasks below as prerequisites. They are mise file-tasks
-# in config/mise/tasks/ (symlinked to ~/.config/mise/tasks by [dotfiles], which
-# applies before the final task, so the files exist when deps are resolved).
-# Each is idempotent (key exists / mtime guard / sha marker). {{ config_root }}
-# templating is not available in 2026.9.1 (verified), so the tasks use
-# HOME-relative paths.
-depends = ["bootstrap-ssh-key"]
-
 # Whole-repo skills (bootstrap.repos cannot strip subdirectories). Pinned to the
 # exact commits the old .chezmoiexternal.toml used (decision #4).
 [bootstrap.repos]

@@ -13,11 +13,10 @@ set -euo pipefail
 #    itself is documented-but-unreleased as of mise 2026.9.1 (the current latest),
 #    and it will clone into ~/.config/mise exactly as this script does.
 # 3. Runs `mise bootstrap --yes`: dotfiles (symlinks) → [tools] → post-tools hook
-#    (pi extension deps) → final task (per-machine ssh key).
+#    (pi extension deps) → final hook.
 #
-# The repo is PUBLIC (keys are generated per-machine by the bootstrap task and
-# never committed). If it ever goes private, generate ~/.ssh/id_rsa BEFORE this
-# script clones (see MIGRATION.md decision #11).
+# The repo is PUBLIC; never commit credentials. (If it ever goes private, generate
+# ~/.ssh/id_rsa BEFORE this script clones — see MIGRATION.md decision #11.)
 #
 # Optional arg 1 = repo URL/path to clone (defaults to the public GitHub repo;
 # the Docker smoke test passes the local checkout so it exercises this exact
@@ -57,6 +56,4 @@ MISE_AUTO_ENV=true mise bootstrap --yes
 
 echo ""
 echo "Done. Open a new shell (env.sh activates mise via ~/.zshenv)."
-echo "Post-bootstrap steps you may want:"
-echo "  - add the generated key to GitHub: cat ~/.ssh/id_rsa.pub"
-echo "  - macOS: run `mise run install-macos-apps` after first login to install .app bundles"
+echo "macOS: run `mise run install-macos-apps` after first login to install .app bundles"

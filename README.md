@@ -11,7 +11,7 @@ curl -fsSL https://raw.githubusercontent.com/williamfligor/home2/main/install.sh
 `install.sh`:
 1. installs mise into `~/.local/bin` (if absent),
 2. clones this repo into `~/.config/mise` so the repo-root `mise.toml` **is** the global mise config (dotfiles, tools, hooks, final task),
-3. runs `MISE_AUTO_ENV=true mise bootstrap --yes` (dotfiles → tools → post-tools hook → final task: per-machine ssh key).
+3. runs `MISE_AUTO_ENV=true mise bootstrap --yes` (dotfiles → tools → post-tools hook).
 
 This is the released realization of the documented-but-unreleased `mise bootstrap --from-git`; once a mise release ships that flag, install.sh can switch to it unchanged (see MIGRATION.md decision #1).
 
@@ -51,8 +51,8 @@ Shell activates mise via `~/.zshenv` → `~/.config/zsh/env.sh` (`mise activate 
 
 ## Notes / caveats
 
-- Repo is **public**; ssh keys are generated per-machine at bootstrap and never committed. (If the repo ever goes private, generate `~/.ssh/id_rsa` before cloning — MIGRATION.md decision #11.)
-- No encryption; git only tracks filenames + the executable bit (no `0600` semantics — the real ssh key is `0600` from `ssh-keygen`).
+- Repo is **public**; never commit credentials. (If it ever goes private, generate `~/.ssh/id_rsa` before cloning — MIGRATION.md decision #11.)
+- No encryption; git only tracks filenames + the executable bit (no `0600` semantics).
 - Termux needs `MISE_ENV=android`; Termux may report os=linux, so `mise.linux.toml` stays empty.
 - `~/.pi`, `~/.config/nvim/lazy-lock.json` etc. are runtime state — not managed, never linked as whole dirs.
 

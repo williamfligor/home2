@@ -112,8 +112,9 @@ mise.macos.toml      # macos/xbar/ + macos/KeyBindings/, mac-only tools, mac-onl
 mise.linux.toml      # linux-only (if any)
 mise.android.toml    # Termux-only (verify #12; fallback MISE_ENV=android)
 .miserc.toml         # auto_env = true
-tasks/               # mise tasks (bootstrap-ssh-key, clean-osx-network, install-macos-apps,
-                     #   update-pi, update-pi-summary — file-tasks in config/mise/tasks/)
+tasks/               # mise tasks (clean-osx-network, install-macos-apps, update-pi,
+                     #   update-pi-summary — file-tasks in config/mise/tasks/; bootstrap-ssh-key and
+                     #   build-autossh were removed as unused)
 config/, local/, pi/, ssh/, termux/, macos/, skills/, zshrc.d/   # dotfile sources (no .tmpl)
 install.sh           # curl mise + clone repo → ~/.config/mise + MISE_AUTO_ENV=true mise bootstrap --yes
 ```
