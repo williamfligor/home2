@@ -202,11 +202,34 @@ pandoc = "latest"
 "~/.pi/agent/skills/video-to-recipe/scripts/transcribe.py" = { source = "private_dot_pi/private_agent/skills/video-to-recipe/scripts/transcribe.py", mode = "symlink" }
 "~/.pi/agent/skills/video-to-recipe/SKILL.md" = { source = "private_dot_pi/private_agent/skills/video-to-recipe/SKILL.md", mode = "symlink" }
 
-# ── Bootstrap (filled in by porting tasks) ───────────────────────────────────
-# [tasks.bootstrap]   autossh mtime-guarded build, ssh-keygen, grill-me fetch
-# [bootstrap.repos]   whole-repo skills (avoid-ai-writing, humanizer)
-# [bootstrap.hooks]   post-tools (pi extensions npm install)
-# [bootstrap.mise_shell_activate] — unused; shell activation lives in env.sh
+# ── Bootstrap (final task, hooks, skill repos) ───────────────────────────────
+# The bootstrap final task runs on every `mise bootstrap` — each script is
+# idempotent (key exists / mtime guard / sha marker). `{{ config_root }}` is the
+# clone dir (global config root), available in task/hook templates.
+
 [tasks.bootstrap]
+# run commands are executed via sh; `~` tilde-expands there. The scripts are
+# symlinked into ~/.local/bin by [dotfiles] (symlink-each of dot_local/bin),
+# which applies before the final task. {{ config_root }} templating is not
+# available in 2026.9.1 (verified), hence the HOME-relative paths.
+run = [
+  "~/.local/bin/bootstrap-ssh-key",
+  "~/.local/bin/build-autossh",
+  "~/.local/bin/fetch-grill-me",
+]
+
+# Whole-repo skills (bootstrap.repos cannot strip subdirectories). Pinned to the
+# exact commits the old .chezmoiexternal.toml used (decision #4).
 [bootstrap.repos]
-[bootstrap.hooks]
+"~/.agents/skills/avoid-ai-writing" = {
+  url = "https://github.com/conorbronsdon/avoid-ai-writing.git",
+  ref = "efc19575bab315e9bcc5f33d0435040c1a6022cd",
+}
+"~/.agents/skills/humanizer" = {
+  url = "https://github.com/blader/humanizer.git",
+  ref = "523374dee72d67c7b2b5f858ea0094ffda49c3ac",
+}
+
+# npm install for pi extensions — runs after `mise install` (tools present).
+[bootstrap.hooks.post-tools]
+run = "~/.local/bin/pi-ext-deps"

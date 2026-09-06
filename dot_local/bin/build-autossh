@@ -1,0 +1,45 @@
+#!/bin/bash
+# vi: ft=bash
+set -euo pipefail
+
+# Build autossh from the pinned http:autossh source (installed by mise) into
+# ~/.local/bin. Guarded on SOURCE-vs-BINARY mtime, not mere existence: a bump
+# of http:autossh in mise.toml refreshes the source tree and triggers a rebuild.
+# Runs as the bootstrap final task — safe to repeat (MIGRATION.md decision #5).
+
+AUTOSSH_SRC="$HOME/.local/share/mise/installs/http-autossh/latest"
+AUTOSSH_BIN="$HOME/.local/bin/autossh"
+
+if ! command -v gcc &>/dev/null; then
+  echo "autossh: gcc not found, skipping build"
+  exit 0
+fi
+
+if [[ ! -d "$AUTOSSH_SRC" ]]; then
+  echo "autossh: source not found at $AUTOSSH_SRC, skipping"
+  exit 0
+fi
+
+# mtime guard: binary exists AND is newer than the source tree -> up to date.
+if [[ -x "$AUTOSSH_BIN" ]] && [[ "$AUTOSSH_SRC" -ot "$AUTOSSH_BIN" ]]; then
+  echo "autossh: binary up to date"
+  exit 0
+fi
+
+echo "=== Building autossh ==="
+cd "$AUTOSSH_SRC"
+
+if [[ ! -f "Makefile" ]]; then
+  if [[ -f "configure" ]]; then
+    ./configure --prefix="$HOME/.local"
+  elif command -v autoreconf &>/dev/null; then
+    autoreconf -i
+    ./configure --prefix="$HOME/.local"
+  else
+    echo "autossh: neither configure nor autoreconf found, skipping"
+    exit 0
+  fi
+fi
+
+make && make install
+echo "=== autossh built and installed ==="

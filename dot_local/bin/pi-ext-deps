@@ -1,0 +1,24 @@
+#!/bin/bash
+# vi: ft=bash
+set -euo pipefail
+
+# Install npm dependencies for pi extensions that ship a package.json.
+# Runs as the post-tools bootstrap hook (node/npm are installed by then).
+# No `mise activate` needed — hooks run inside mise's env; npm resolves via
+# `mise exec` (MIGRATION.md decision #5).
+
+echo "=== Installing pi extension dependencies ==="
+
+# Hook processes don't inherit mise's PATH in 2026.9.1 (verified); resolve the
+# mise binary directly. `--` lets mise build the PATH from installed tools.
+MISE_BIN="${MISE_BIN:-$HOME/.local/bin/mise}"
+
+for dir in "$HOME"/.pi/agent/extensions/*/; do
+  [[ -d "$dir" ]] || continue
+  if [[ -f "$dir/package.json" ]]; then
+    echo "Installing deps for $(basename "$dir")..."
+    (cd "$dir" && "$MISE_BIN" exec -- npm install --no-audit --no-fund 2>&1 | tail -1)
+  fi
+done
+
+echo "=== Done ==="

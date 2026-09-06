@@ -1,0 +1,26 @@
+#!/bin/bash
+# vi: ft=bash
+set -euo pipefail
+
+# Per-machine ssh key, generated once at bootstrap (final task).
+# Runs as the bootstrap final task. Generates once; never overwrites.
+# Keys are never committed; the repo stays public (MIGRATION.md decision #11).
+
+KEY="$HOME/.ssh/id_rsa"
+
+if [[ -f "$KEY" ]]; then
+  echo "ssh: key exists ($KEY), skipping"
+  exit 0
+fi
+
+mkdir -p "$HOME/.ssh"
+chmod 700 "$HOME/.ssh"
+
+MACHINE_NAME="$(hostname)"
+if [[ -t 0 ]]; then
+  read -r -p "Enter Machine Name (default: $MACHINE_NAME): " REPLY || true
+  [[ -n "${REPLY:-}" ]] && MACHINE_NAME="$REPLY"
+fi
+
+ssh-keygen -t rsa -b 2048 -C "$MACHINE_NAME" -f "$KEY" -N "" >/dev/null
+echo "ssh: generated $KEY (comment: $MACHINE_NAME)"
