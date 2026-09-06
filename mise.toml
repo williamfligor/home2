@@ -123,9 +123,15 @@ pandoc = "latest"
 # sqlite/node_modules; ~/.ssh/sockets) are never declared/linked.
 [dotfiles]
 # Shell
+"~/.zshrc" = { source = "dot_zshrc", mode = "symlink" }
+"~/.zshenv" = { source = "dot_zshenv", mode = "symlink" }
+"~/.gitconfig" = { source = "dot_gitconfig", mode = "symlink" }
 "~/.dircolors" = { source = "dot_dircolors", mode = "symlink" }
 "~/.p10k.zsh" = { source = "dot_p10k.zsh", mode = "symlink" }
 "~/.tmux.conf" = { source = "dot_tmux.conf", mode = "symlink" }
+"~/.config/zsh/aliases.sh" = { source = "dot_config/zsh/aliases.sh", mode = "symlink" }
+"~/.config/zsh/functions.sh" = { source = "dot_config/zsh/functions.sh", mode = "symlink" }
+"~/.config/zsh/env.sh" = { source = "dot_config/zsh/env.sh", mode = "symlink" }
 "~/.zshrc.d/10-mise-plugin.zsh" = { source = "dot_zshrc.d/10-mise-plugin.zsh", mode = "symlink" }
 "~/.zshrc.d/50-nono.zsh" = { source = "dot_zshrc.d/50-nono.zsh", mode = "symlink" }
 "~/.zshrc.d/90-history-backup.zsh" = { source = "dot_zshrc.d/90-history-backup.zsh", mode = "symlink" }

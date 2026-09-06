@@ -2,4 +2,4 @@
 # .zshenv - sourced for ALL zsh invocations (interactive and non-interactive)
 # Keep this minimal — only environment variables needed by scripts/SSH commands.
 
-{{ template "env.sh" . }}
+source ~/.config/zsh/env.sh

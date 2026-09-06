@@ -66,13 +66,9 @@ unsetopt correct_all
 
 # ------------------------ Includes --------------------------------
 
-{{ if eq .chezmoi.os "windows" -}}
-export PATH=$PATH:/c/Program\ Files/Oracle/VirtualBox
-{{ end -}}
-
-{{ template "aliases.sh" . }}
-
-{{ template "functions.sh" . }}
+# Shared aliases/functions (formerly chezmoi templates; now static files)
+source ~/.config/zsh/aliases.sh
+source ~/.config/zsh/functions.sh
 
 # Load ~/.local.sh if found
 [[ ! -f ~/.local.sh ]] || source ~/.local.sh
