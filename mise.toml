@@ -166,6 +166,9 @@ pandoc = "latest"
 # Mise global tasks (task files; discovered from ~/.config/mise/tasks)
 "~/.config/mise/tasks/update-pi" = { source = "config/mise/tasks/update-pi", mode = "symlink" }
 "~/.config/mise/tasks/update-pi-summary" = { source = "config/mise/tasks/update-pi-summary", mode = "symlink" }
+"~/.config/mise/tasks/bootstrap-ssh-key" = { source = "config/mise/tasks/bootstrap-ssh-key", mode = "symlink" }
+"~/.config/mise/tasks/build-autossh" = { source = "config/mise/tasks/build-autossh", mode = "symlink" }
+"~/.config/mise/tasks/fetch-grill-me" = { source = "config/mise/tasks/fetch-grill-me", mode = "symlink" }
 
 # Pi agent files — file-level only. ~/.pi/agent/{auth.json,sessions,git,tmp,npm,
 # pi-web.sqlite,extensions/*/node_modules} are runtime state and stay unmanaged.
@@ -207,15 +210,13 @@ pandoc = "latest"
 # clone dir (global config root), available in task/hook templates.
 
 [tasks.bootstrap]
-# run commands are executed via sh; `~` tilde-expands there. The scripts are
-# symlinked into ~/.local/bin by [dotfiles] (symlink-each of local/bin),
-# which applies before the final task. {{ config_root }} templating is not
-# available in 2026.9.1 (verified), hence the HOME-relative paths.
-run = [
-  "~/.local/bin/bootstrap-ssh-key",
-  "~/.local/bin/build-autossh",
-  "~/.local/bin/fetch-grill-me",
-]
+# Runs the machine-setup tasks below as prerequisites. They are mise file-tasks
+# in config/mise/tasks/ (symlinked to ~/.config/mise/tasks by [dotfiles], which
+# applies before the final task, so the files exist when deps are resolved).
+# Each is idempotent (key exists / mtime guard / sha marker). {{ config_root }}
+# templating is not available in 2026.9.1 (verified), so the tasks use
+# HOME-relative paths.
+depends = ["bootstrap-ssh-key", "build-autossh", "fetch-grill-me"]
 
 # Whole-repo skills (bootstrap.repos cannot strip subdirectories). Pinned to the
 # exact commits the old .chezmoiexternal.toml used (decision #4).

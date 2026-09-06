@@ -1,4 +1,5 @@
 #!/bin/bash
+#MISE description="Build autossh from the pinned http:autossh source into ~/.local/bin (mtime-guarded)"
 # vi: ft=bash
 set -euo pipefail
 

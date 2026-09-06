@@ -1,4 +1,5 @@
 #!/bin/bash
+#MISE description="Fetch the grill-me skill (pinned SHA) into ~/.agents/skills (marker-guarded)"
 # vi: ft=bash
 set -euo pipefail
 

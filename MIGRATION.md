@@ -176,11 +176,17 @@ Everything below is committed on `main` and exercised by the green `bash .test.s
   cannot represent `0600`, so `private_`'s perm meaning is lost under symlink mode anyway).
   All 87 sources renamed to plain names (`dot_zshrc`→`zshrc`, `private_dot_pi/private_agent`→
   `pi/agent`, `Library/private_Application Support`→`Library/Application Support`, …); the
-  exec bit on `local/bin/{bootstrap-ssh-key,build-autossh,fetch-grill-me,install-macos-apps,
-  pi-ext-deps}` (`100755`) is preserved — that's all git tracks. No per-file `0600` support in
+  exec bit on the PATH scripts (`local/bin/*`, now 16) and on `config/mise/tasks/*`
+  (`100755`) is preserved — that's all git tracks. No per-file `0600` support in
   mise (only inline `content = …` writes `0600`; see decision #1/#11). `~/.ssh/config` stays
   `0644` (non-secret; SSH only rejects world-*writable* config; the real key `id_rsa` is `0600`
   from `ssh-keygen`).
+- **Bootstrap setup steps promoted to mise file-tasks**: `bootstrap-ssh-key`, `build-autossh`,
+  `fetch-grill-me` moved from `local/bin` to `config/mise/tasks/` (as `#MISE` file-tasks,
+  discovered from `~/.config/mise/tasks`), and `[tasks.bootstrap]` now runs them via
+  `depends = [...]` (verified: `mise bootstrap` executes file-task deps after dotfiles
+  apply). `local/bin` keeps only PATH scripts (`install-macos-apps` is still a PATH
+  executable because mac tool `postinstall` calls it as a bare command).
 
 Open items still apply: Termux `mise.android.toml` requires `MISE_ENV=android` (mise has no
 android platform env); `min_version` is pinned to the Docker-validated 2026.9.1 (tested floor,
