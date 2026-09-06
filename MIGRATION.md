@@ -17,7 +17,7 @@ windows, no bash**.
 | 1 | Repo role | **Same repo** — this repo (`home2`) is the global mise config + dotfiles source. Plan: `mise bootstrap --from-git williamfligor/home2 --yes` [x]. **Correction (implemented):** `--from-git` is documented-but-**unreleased** as of mise 2026.9.1 (current latest; the 2026.9.1 CLI has only `--from`/`--from-dir`). Its released realization — clone the repo into `$MISE_CONFIG_DIR` (~/.config/mise) so repo-root `mise.toml` is the global config, then `mise bootstrap --yes` — is what `install.sh` does. (2026.9.1's `--from <url>` is *one-shot*: it clones into `$MISE_DATA_DIR/bootstrap-repo`, applies dotfiles, but does **not** persist the config — `mise which node` fails afterward. Verified empirically → not suitable.) |
 | 2 | Encryption | **None needed.** (`private_dot_ssh/config` has no real secrets; keys are per-machine. Git identity already public today. See ssh handling below.) |
 | 3 | OS-dependent handling | **mise platform environments** (`auto_env = true`) + `[tools] os=` + drop what we can. See below. |
-| 4 | Skills (`bootstrap.repos` can't strip) | **`bootstrap.repos` for whole-repo skills; tarball task for grill-me.** `[bootstrap.repos]` is whole-repo clone only — no stripComponents/include/sparse [x]. |
+| 4 | Skills (`bootstrap.repos` can't strip) | **`bootstrap.repos` for whole-repo skills; in-repo skills symlinked to `~/.agents/skills`.** `[bootstrap.repos]` is whole-repo clone only — no stripComponents/include/sparse [x]. **Correction (implemented):** the grill-me tarball task was dropped (never used); all skills now land in `~/.agents/skills` — `[bootstrap.repos]` clones (avoid-ai-writing, humanizer) + `[dotfiles]` symlink-each of the repo `skills/` dir (review-git-status-diff, uv-package-manager, video-to-recipe). |
 | 5 | Per-script migration | See table below. |
 | 6 | Dotfile format | **Symlink, file-level only.** Link files, never directories that accumulate runtime state (see granularity rule). |
 | 7 | `.chezmoiignore` | **Not needed.** Symlink mode → only declared targets are linked; runtime state (`.pi`, `node_modules`, sqlite) is never declared. |
@@ -149,9 +149,9 @@ pre-mise-migration`.
 
 ### Post-cutover cleanup (optional, non-blocking)
 
-- `~/.agents/skills/{avoid-ai-writing,humanizer,grill-me}` are cloned/fetched by bootstrap;
-  bump the pinned `ref`/`SHA` in `mise.toml`/`fetch-grill-me` to refresh.
-- (The chezmoi-only `resolve-chezmoi-diff` skill was removed during implementation.)
+- `~/.agents/skills/{avoid-ai-writing,humanizer}` (cloned by `[bootstrap.repos]`) and
+  `skills/` (in-repo, symlinked) refresh by bumping pinned refs / re-vendoring.
+- (The chezmoi-only `resolve-chezmoi-diff` skill and the unused grill-me skill were removed.)
 
 ## Implementation status (Docker-validated, 2026-09-06)
 
@@ -210,6 +210,13 @@ Everything below is committed on `main` and exercised by the green `bash .test.s
   `mise install` skips lazy tools and the shim triggers on-demand install. Core runtime
   (node, uv, pi-coding-agent, nono), shell tools (bat/eza/fd/fzf/rg/tmux/yazi/zellij/delta/gh/
   neovim/yq/glow/tlrc), zsh plugins, and the mac .app bundles stay eager.
+- **Skills consolidated to ~/.agents/skills; grill-me removed**: the three in-repo pi agent
+  skills (review-git-status-diff, uv-package-manager, video-to-recipe) moved from
+  `pi/agent/skills/` to a repo-root `skills/` dir, symlinked into `~/.agents/skills` via
+  `[dotfiles]` symlink-each (preserves the `[bootstrap.repos]` clones avoid-ai-writing and
+  humanizer as unmanaged neighbors; repos apply before dotfiles). The `fetch-grill-me` task
+  and its grill-me skill were removed (never used) — no more tarball/subdirectory hack. `~/.pi`
+  is now runtime state only (agent config/extensions remain in `pi/agent`).
 
 Open items still apply: Termux `mise.android.toml` requires `MISE_ENV=android` (mise has no
 android platform env); `min_version` is pinned to the Docker-validated 2026.9.1 (tested floor,

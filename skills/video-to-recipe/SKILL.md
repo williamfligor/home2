@@ -41,7 +41,7 @@ wrong or incomplete half the time.
 ## Quick start
 
 ```bash
-SKILL=<path-to-this-skill-directory>   # e.g. ~/.pi/agent/skills/video-to-recipe
+SKILL=<path-to-this-skill-directory>   # e.g. ~/.agents/skills/video-to-recipe
 WORK=$(mktemp -d -t vid2recipe.XXXXXX) # all intermediate artifacts live here
 
 uv run "$SKILL/scripts/download.py" "<URL>" --outdir "$WORK"

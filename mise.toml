@@ -151,6 +151,7 @@ pandoc = { version = "latest", lazy = true }
 "~/.config/nvim" = { source = "config/nvim", mode = "symlink-each" }
 "~/.config/nono/profiles" = { source = "config/nono/profiles", mode = "symlink-each" }
 "~/.pi/agent" = { source = "pi/agent", mode = "symlink-each" }
+"~/.agents/skills" = { source = "skills", mode = "symlink-each" }
 "~/.local/bin" = { source = "local/bin", mode = "symlink-each" }
 
 # ── Single file inside a private/shared dir ─────────────────────────────────
@@ -167,7 +168,7 @@ pandoc = { version = "latest", lazy = true }
 # Each is idempotent (key exists / mtime guard / sha marker). {{ config_root }}
 # templating is not available in 2026.9.1 (verified), so the tasks use
 # HOME-relative paths.
-depends = ["bootstrap-ssh-key", "build-autossh", "fetch-grill-me"]
+depends = ["bootstrap-ssh-key", "build-autossh"]
 
 # Whole-repo skills (bootstrap.repos cannot strip subdirectories). Pinned to the
 # exact commits the old .chezmoiexternal.toml used (decision #4).
