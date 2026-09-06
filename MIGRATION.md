@@ -4,10 +4,11 @@ Goal: replace chezmoi as the machine bootstrap/dotfile mechanism with `mise boot
 keeping mise + dotfiles in the same repo. Target scope: **macOS + Linux, zsh only, no
 windows, no bash**.
 
-> Status: reviewed by a fresh-context reviewer (2026-09-06). Reviewer confirmed all
-> repo-side claims; flagged one factual error (credential.helper), one missing decision
-> (fate of `dot_config/mise/config.toml`), and several mise-behavior claims that are
-> doc-verified below. `[x]` = doc-verified via mise.jdx.dev.
+> Status: **IMPLEMENTED + Docker-validated (2026-09-06).** Plan was reviewed by a fresh-context
+> reviewer (2026-09-06), then implemented as commits d32a2a1…e1d5947 on `main` and validated
+> end-to-end in Docker (`bash .test.sh` green: bootstrap + mise + nvim smokes). The repo is now
+> the mise global config; the live-machine cutover below is all that remains.
+> `[x]` = doc-verified via mise.jdx.dev; empirical results in the implementation log.
 
 ## Locked decisions
 
@@ -123,12 +124,53 @@ Notes:
 ## Rollout / rollback
 
 - mise dotfiles **refuse conflicting targets unless `--force-dotfiles`** [x] → safe to run
-  `mise bootstrap dotfiles apply --dry-run` [x] against existing chezmoi state first (staging).
-- **De-chezmoi cutover checklist** (reviewer finding): on each machine, `chezmoi purge`
-  (or back up + remove managed files), remove `~/.config/chezmoi`, remove the old
-  `~/.local/share/chezmoi` clone, and remove `cz` aliases.
-- Tag/branch the repo before cutover as the rollback point.
-- Develop + validate in Docker (`mise bootstrap` in the image) before touching a real machine.
+  `mise bootstrap dotfiles apply --dry-run` against existing chezmoi state first (staging).
+  Validated: dry-run prints the plan without applying; existing non-conforming files refuse.
+- **Rollback point**: tag `pre-mise-migration` (at bb2fa80, the last pre-migration commit).
+  To roll back a machine: `git checkout pre-mise-migration` and re-run the old `install.sh`.
+
+### Cutover checklist (per machine; run when ready to leave chezmoi)
+
+1. **Commit/push** the migration work on `main` (so `--from-git` fetches it).
+2. **Back up / purge chezmoi state**: `chezmoi purge` (removes managed files) or back up
+   `~/.local/share/chezmoi` first. Then remove `~/.config/chezmoi`.
+3. **Remove old clone**: the repo currently doubles as the chezmoi source at
+   `~/.local/share/chezmoi`; after purge it can be deleted (the next `mise bootstrap
+   --from-git` reclones it into `~/.config/mise`).
+4. **Remove `cz` aliases** from the shell if present (they were deleted from the repo;
+   interactive sessions may still have them until re-sourced).
+5. **Bootstrap**: `bash install.sh` (curl mise → `mise bootstrap --from-git`). On macOS,
+   confirm the .app bundles install (postinstall → `install-macos-apps`).
+6. **Validate**: `mise bootstrap dotfiles apply --dry-run` shows converged; `mise bootstrap
+   status` ok; smoke via `bash .test.sh`.
+
+Rollback during cutover: restore the purged files from backup and `git checkout
+pre-mise-migration`.
+
+### Post-cutover cleanup (optional, non-blocking)
+
+- `private_dot_pi/private_agent/skills/resolve-chezmoi-diff` is now obsolete (it operates on
+  chezmoi source state); remove it from the repo + `~/.pi` on the next pass.
+- `~/.agents/skills/{avoid-ai-writing,humanizer,grill-me}` are cloned by bootstrap; bump the
+  pinned `ref`/`SHA` in `mise.toml`/`fetch-grill-me` to refresh.
+
+## Implementation status (Docker-validated, 2026-09-06)
+
+Everything below is committed on `main` and exercised by the green `bash .test.sh` run:
+
+- `mise.toml` (global config: merged `[tools]`+`[settings]`+`[dotfiles]`, `[tasks.bootstrap]`,
+  `[bootstrap.repos]`, `[bootstrap.hooks.post-tools]`, `min_version = "2026.9.1"`); platform
+  files `mise.{macos,linux,android}.toml`; `.miserc.toml` (forward-compat).
+- Dotfiles de-templated to static files; shared aliases/functions/env → `~/.config/zsh/*.sh`;
+  dead `cz`/`cza`/`ccd()` removed; `dot_config/mise/config.toml` deleted (decision #10).
+- Scripts ported (final task + hooks); skill repos via `[bootstrap.repos]`; grill-me task.
+- `install.sh`, rewritten `.test.sh`/`.Dockerfile`, `.github/workflows` cache key, `.dockerignore`.
+- Verification greps: zero `.tmpl`/`.chezmoi*`/windows-branch/`cz`/`cza`/`ccd`/`run_onchange`/
+  `chezmoi-prune` references remain in tracked files.
+
+Open items still apply: Termux `mise.android.toml` requires `MISE_ENV=android` (mise has no
+android platform env); `min_version` is pinned to the Docker-validated 2026.9.1 (tested floor,
+not the historical minimum).
 
 ## Doc-verification log
 
