@@ -11,7 +11,7 @@ curl -fsSL https://raw.githubusercontent.com/williamfligor/home2/main/install.sh
 `install.sh`:
 1. installs mise into `~/.local/bin` (if absent),
 2. clones this repo into `~/.config/mise` so the repo-root `mise.toml` **is** the global mise config (dotfiles, tools, hooks, final task),
-3. runs `MISE_AUTO_ENV=true mise bootstrap --yes` (dotfiles → tools → post-tools hook → final task: per-machine ssh key, autossh build).
+3. runs `MISE_AUTO_ENV=true mise bootstrap --yes` (dotfiles → tools → post-tools hook → final task: per-machine ssh key).
 
 This is the released realization of the documented-but-unreleased `mise bootstrap --from-git`; once a mise release ships that flag, install.sh can switch to it unchanged (see MIGRATION.md decision #1).
 
@@ -43,7 +43,7 @@ Dotfiles are folder-level symlinks for fully-owned static dirs, `symlink-each` f
 ```sh
 mise bootstrap        # converge everything (or: mb)
 mbs / mbd / mba       # dotfiles status / diff / apply (mise bootstrap dotfiles …)
-mise run build-autossh …   # run a file-task
+mise run clean-osx-network …   # run a file-task
 mise skills sync      # when tool-attached skills land (packslip)
 ```
 

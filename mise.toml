@@ -107,14 +107,6 @@ pandoc = { version = "latest", lazy = true }
   version_json_path = ".tag_name",
 }
 
-# Source-compiled tools
-# Official upstream (GitHub mirror only has up to 1.4f)
-"http:autossh" = {
-  version = "1.4g",
-  url = "https://www.harding.motd.ca/autossh/autossh-{{ version }}.tgz",
-  strip_components = 1,
-}
-
 # ── Dotfiles (shared; file-level symlinks only) ──────────────────────────────
 # Sources are relative to this file's directory (the clone), per the docs:
 # "Relative explicit sources resolve against the directory of the config file
@@ -147,7 +139,7 @@ pandoc = { version = "latest", lazy = true }
 #    ~/.config/nvim writes lazy-lock.json + lazy/; ~/.pi/agent holds auth.json,
 #    sessions/, git/, tmp/, npm/, *.sqlite; ~/.config/nono/profiles gains
 #    profiles at runtime (`nono profile promote`); ~/.local/bin gains non-repo
-#    tools (e.g. autossh). ────────────────────────────────────────────────────
+#    tools. ────────────────────────────────────────────────────────────
 "~/.config/nvim" = { source = "config/nvim", mode = "symlink-each" }
 "~/.config/nono/profiles" = { source = "config/nono/profiles", mode = "symlink-each" }
 "~/.pi/agent" = { source = "pi/agent", mode = "symlink-each" }
@@ -168,7 +160,7 @@ pandoc = { version = "latest", lazy = true }
 # Each is idempotent (key exists / mtime guard / sha marker). {{ config_root }}
 # templating is not available in 2026.9.1 (verified), so the tasks use
 # HOME-relative paths.
-depends = ["bootstrap-ssh-key", "build-autossh"]
+depends = ["bootstrap-ssh-key"]
 
 # Whole-repo skills (bootstrap.repos cannot strip subdirectories). Pinned to the
 # exact commits the old .chezmoiexternal.toml used (decision #4).

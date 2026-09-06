@@ -13,7 +13,7 @@ set -euo pipefail
 #    itself is documented-but-unreleased as of mise 2026.9.1 (the current latest),
 #    and it will clone into ~/.config/mise exactly as this script does.
 # 3. Runs `mise bootstrap --yes`: dotfiles (symlinks) → [tools] → post-tools hook
-#    (pi extension deps) → final task (per-machine ssh key, autossh build).
+#    (pi extension deps) → final task (per-machine ssh key).
 #
 # The repo is PUBLIC (keys are generated per-machine by the bootstrap task and
 # never committed). If it ever goes private, generate ~/.ssh/id_rsa BEFORE this

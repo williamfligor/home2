@@ -48,10 +48,7 @@ $RUNNER run --rm home2-test zsh -ic '
         if [ -f "$HOME/.agents/skills/$skill/SKILL.md" ]; then echo "  ✓ $skill"; else echo "  ✗ $skill MISSING"; fi
     done
 
-    echo "[3] autossh built by final task..."
-    if [ -x "$HOME/.local/bin/autossh" ]; then echo "  ✓ autossh ($(readlink -f "$HOME/.local/bin/autossh" 2>/dev/null || echo $HOME/.local/bin/autossh))"; else echo "  ✗ autossh MISSING"; fi
-
-    echo "[4] shell env (env.sh via zshenv)..."
+    echo "[3] shell env (env.sh via zshenv)..."
     if [ "$MISE_AUTO_ENV" = "true" ]; then echo "  ✓ MISE_AUTO_ENV=true exported"; else echo "  ✗ MISE_AUTO_ENV not true"; fi
     if [ -L "$HOME/.zshrc" ]; then echo "  ✓ ~/.zshrc symlinked ($(readlink "$HOME/.zshrc"))"; else echo "  ✗ ~/.zshrc not a symlink"; fi
 

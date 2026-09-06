@@ -28,7 +28,6 @@ alias speedtest="wget -O /dev/null http://cachefly.cachefly.net/100mb.test";
 
 
 # ZMX
-alias zs='zmx-ssh'
 alias zl='zmx-local'
 
 # pi

@@ -27,7 +27,7 @@ windows, no bash**.
 | 11 | Fresh-machine auth (reviewer high) | **Keep repo public** (status quo — keys are per-machine, never committed). If it ever goes private: `install.sh` generates the ssh key *before* `mise bootstrap --from-git`, mirroring current `bootstrap.sh`. |
 | 12 | Termux platform file (reviewer low) | **Verify** mise reports `os=android` under platform envs before promising `mise.android.toml` [docs list linux/macos/windows; Termux has known mise build issues]. Fallback: explicit `MISE_ENV=android` selection in Termux's `.miserc.toml`. |
 | 13 | Minimum mise version | Pin `min_version` in repo-root config (bootstrap/dotfiles/auto_env are recent features; confirm against the version that ships them). |
-| 14 | Symlink granularity rule (reviewer medium) | **Folder-first, file-level only where needed.** Whole-folder symlink for fully-owned static dirs (`~/.config/mise/tasks`, `config/zsh`, `~/.zshrc.d`, `bat`, `bottom`, `ghostty`, `git`, `zellij`, `yazi`, `~/.termux`, `~/Library/KeyBindings`). `symlink-each` (links individual files, preserves unmanaged neighbors) for trees that accumulate runtime writes or unmanaged neighbors (`~/.config/nvim` writes `lazy-lock.json` + `lazy/`; `~/.pi/agent` holds auth/sessions/npm/sqlite; `~/.config/nono/profiles` gains profiles via `nono profile promote`; `~/.local/bin` gains non-repo tools like `autossh`). Never whole-dir-link those. Root dotfiles + `~/.ssh/config` stay single-file links. Verified: re-applying a file-link → dir-link switch needs `--force` once; fresh machines apply cleanly. |
+| 14 | Symlink granularity rule (reviewer medium) | **Folder-first, file-level only where needed.** Whole-folder symlink for fully-owned static dirs (`~/.config/mise/tasks`, `config/zsh`, `~/.zshrc.d`, `bat`, `bottom`, `ghostty`, `git`, `zellij`, `yazi`, `~/.termux`, `~/Library/KeyBindings`). `symlink-each` (links individual files, preserves unmanaged neighbors) for trees that accumulate runtime writes or unmanaged neighbors (`~/.config/nvim` writes `lazy-lock.json` + `lazy/`; `~/.pi/agent` holds auth/sessions/npm/sqlite; `~/.config/nono/profiles` gains profiles via `nono profile promote`; `~/.local/bin` gains non-repo tools). Never whole-dir-link those. Root dotfiles + `~/.ssh/config` stay single-file links. Verified: re-applying a file-link → dir-link switch needs `--force` once; fresh machines apply cleanly. |
 
 ## OS-dependent handling (decision #3)
 
@@ -112,8 +112,8 @@ mise.macos.toml      # macos/xbar/ + macos/KeyBindings/, mac-only tools, mac-onl
 mise.linux.toml      # linux-only (if any)
 mise.android.toml    # Termux-only (verify #12; fallback MISE_ENV=android)
 .miserc.toml         # auto_env = true
-tasks/               # mise tasks (bootstrap-ssh-key, build-autossh, clean-osx-network,
-                     #   install-macos-apps, update-pi, update-pi-summary — file-tasks in config/mise/tasks/)
+tasks/               # mise tasks (bootstrap-ssh-key, clean-osx-network, install-macos-apps,
+                     #   update-pi, update-pi-summary — file-tasks in config/mise/tasks/)
 config/, local/, pi/, ssh/, termux/, macos/, skills/, zshrc.d/   # dotfile sources (no .tmpl)
 install.sh           # curl mise + clone repo → ~/.config/mise + MISE_AUTO_ENV=true mise bootstrap --yes
 ```
@@ -190,8 +190,10 @@ Everything below is committed on `main` and exercised by the green `bash .test.s
   mise (only inline `content = …` writes `0600`; see decision #1/#11). `~/.ssh/config` stays
   `0644` (non-secret; SSH only rejects world-*writable* config; the real key `id_rsa` is `0600`
   from `ssh-keygen`).
-- **Bootstrap setup steps promoted to mise file-tasks**: `bootstrap-ssh-key`, `build-autossh`,
-  `fetch-grill-me` moved from `local/bin` to `config/mise/tasks/` (as `#MISE` file-tasks,
+- **Bootstrap setup steps promoted to mise file-tasks**: `bootstrap-ssh-key`,
+  `build-autossh` (removed later — autossh no longer used) and `fetch-grill-me` (removed
+  later — grill-me unused) moved from `local/bin` to `config/mise/tasks/` (as `#MISE`
+  file-tasks,
   discovered from `~/.config/mise/tasks`), and `[tasks.bootstrap]` now runs them via
   `depends = [...]` (verified: `mise bootstrap` executes file-task deps after dotfiles
   apply). `install-macos-apps` also became a file-task (config/mise/tasks) since it's tightly
@@ -200,8 +202,8 @@ Everything below is committed on `main` and exercised by the green `bash .test.s
   `MISE_TOOL_INSTALL_PATH` propagates so install_one works). `clean-osx-network` (one-off
   macOS network-location reset) also became a file-task; `configure_macos` (a `defaults write`
   script, unreferenced) was **removed** — its settings can be re-declared natively via
-  `[bootstrap.macos.defaults]` if wanted. `local/bin` is now purely PATH helper scripts (13):
-  the pi-ext-deps hook + 12 user helpers.
+  `[bootstrap.macos.defaults]` if wanted. `local/bin` is now purely PATH helper scripts (12):
+  the pi-ext-deps hook + 11 user helpers.
 - **[dotfiles] consolidated to folder links**: 64 file-level entries → 21. Whole-folder
   symlinks for fully-owned static dirs (`~/.config/mise/tasks`, `~/.config/zsh`, `~/.zshrc.d`,
   `~/.config/{bat,bottom,ghostty,git,zellij,yazi}`, `~/.termux`, `~/Library/KeyBindings`);
