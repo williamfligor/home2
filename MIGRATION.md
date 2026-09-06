@@ -14,7 +14,7 @@ windows, no bash**.
 
 | # | Decision | Choice |
 |---|----------|--------|
-| 1 | Repo role | **Same repo** — this repo (`home2`) is the global mise config + dotfiles source. Use `mise bootstrap --from-git williamfligor/home2 --yes` [x]. |
+| 1 | Repo role | **Same repo** — this repo (`home2`) is the global mise config + dotfiles source. Plan: `mise bootstrap --from-git williamfligor/home2 --yes` [x]. **Correction (implemented):** `--from-git` is documented-but-**unreleased** as of mise 2026.9.1 (current latest; the 2026.9.1 CLI has only `--from`/`--from-dir`). Its released realization — clone the repo into `$MISE_CONFIG_DIR` (~/.config/mise) so repo-root `mise.toml` is the global config, then `mise bootstrap --yes` — is what `install.sh` does. (2026.9.1's `--from <url>` is *one-shot*: it clones into `$MISE_DATA_DIR/bootstrap-repo`, applies dotfiles, but does **not** persist the config — `mise which node` fails afterward. Verified empirically → not suitable.) |
 | 2 | Encryption | **None needed.** (`private_dot_ssh/config` has no real secrets; keys are per-machine. Git identity already public today. See ssh handling below.) |
 | 3 | OS-dependent handling | **mise platform environments** (`auto_env = true`) + `[tools] os=` + drop what we can. See below. |
 | 4 | Skills (`bootstrap.repos` can't strip) | **`bootstrap.repos` for whole-repo skills; tarball task for grill-me.** `[bootstrap.repos]` is whole-repo clone only — no stripComponents/include/sparse [x]. |
@@ -149,10 +149,9 @@ pre-mise-migration`.
 
 ### Post-cutover cleanup (optional, non-blocking)
 
-- `private_dot_pi/private_agent/skills/resolve-chezmoi-diff` is now obsolete (it operates on
-  chezmoi source state); remove it from the repo + `~/.pi` on the next pass.
-- `~/.agents/skills/{avoid-ai-writing,humanizer,grill-me}` are cloned by bootstrap; bump the
-  pinned `ref`/`SHA` in `mise.toml`/`fetch-grill-me` to refresh.
+- `~/.agents/skills/{avoid-ai-writing,humanizer,grill-me}` are cloned/fetched by bootstrap;
+  bump the pinned `ref`/`SHA` in `mise.toml`/`fetch-grill-me` to refresh.
+- (The chezmoi-only `resolve-chezmoi-diff` skill was removed during implementation.)
 
 ## Implementation status (Docker-validated, 2026-09-06)
 
@@ -164,7 +163,12 @@ Everything below is committed on `main` and exercised by the green `bash .test.s
 - Dotfiles de-templated to static files; shared aliases/functions/env → `~/.config/zsh/*.sh`;
   dead `cz`/`cza`/`ccd()` removed; `dot_config/mise/config.toml` deleted (decision #10).
 - Scripts ported (final task + hooks); skill repos via `[bootstrap.repos]`; grill-me task.
-- `install.sh`, rewritten `.test.sh`/`.Dockerfile`, `.github/workflows` cache key, `.dockerignore`.
+- `install.sh`, rewritten `.test.sh`/`.Dockerfile` (which drives `install.sh` — the real
+  fresh-machine script — against the local checkout), `.github/workflows` cache key,
+  `.dockerignore`.
+- `install.sh` clones the repo into `~/.config/mise` + `mise bootstrap --yes` — the released
+  realization of `--from-git` (see decision #1); once a mise release ships `--from-git`,
+  `install.sh` can switch to it unchanged.
 - Verification greps: zero `.tmpl`/`.chezmoi*`/windows-branch/`cz`/`cza`/`ccd`/`run_onchange`/
   `chezmoi-prune` references remain in tracked files.
 

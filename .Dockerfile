@@ -17,28 +17,32 @@ RUN apt-get update && \
 ENV HOME=/root
 WORKDIR /root
 
-# ── Install mise ─────────────────────────────────────────────
-# install.sh equivalent: curl mise.run | sh → ~/.local/bin/mise
+# ── Install mise (install.sh does this on a fresh machine) ───
 RUN curl -fsSL https://mise.run | sh && \
     export PATH="$HOME/.local/bin:$PATH" && \
     mise --version | head -1
 
-# ── Stage config files as the global config dir ─────────────
-# Mirrors `mise bootstrap --from-git`: the repo is cloned into ~/.config/mise
-# and its mise.toml IS the global config. Config files are copied first so the
-# tool-install layer below stays cached when only dotfiles/scripts change.
-COPY mise.toml mise.linux.toml mise.macos.toml mise.android.toml .miserc.toml /root/.config/mise/
+# ── Cache layer: install [tools] from a throwaway config so the tool-install
+#    work is not repeated when only dotfiles/scripts change. Uses
+#    MISE_GLOBAL_CONFIG_FILE so ~/.config/mise stays EMPTY (install.sh's
+#    `git clone` below requires an empty/nonexistent target). Tools land in
+#    $MISE_DATA_DIR and persist into the install.sh bootstrap stage.
+COPY mise.toml mise.linux.toml mise.macos.toml mise.android.toml /tmp/cfg/
 RUN --mount=type=secret,id=github_token \
     --mount=type=cache,target=/root/.cache/mise,sharing=locked \
     export PATH="$HOME/.local/bin:$PATH" && \
-    GITHUB_TOKEN=$(cat /run/secrets/github_token) mise install --yes
+    mise trust /tmp/cfg/mise.toml >/dev/null 2>&1 ; \
+    GITHUB_TOKEN=$(cat /run/secrets/github_token) MISE_GLOBAL_CONFIG_FILE=/tmp/cfg/mise.toml \
+        MISE_AUTO_ENV=true mise install --yes
 
-# ── Full repo (dotfiles + scripts) + full bootstrap ─────────
-# Tools converge instantly (layer above); this RUN applies dotfiles, runs the
-# post-tools hook (pi ext deps) and the bootstrap final task (ssh key, autossh,
-# grill-me), exactly as a fresh machine.
-COPY . /root/.config/mise/
-RUN --mount=type=secret,id=github_token \
-    --mount=type=cache,target=/root/.cache/mise,sharing=locked \
+# ── Run the REAL fresh-machine installer against this checkout ──
+# install.sh: clone repo → ~/.config/mise (repo mise.toml becomes the global
+# config, matching the future `--from-git`), then `mise bootstrap --yes`
+# (dotfiles → tools converge → post-tools hook → final task).
+COPY . /tmp/home2/
+RUN cd /tmp/home2 && \
+    git init -q && \
+    git -c user.email=ci@localhost -c user.name=ci add -A && \
+    git -c user.email=ci@localhost -c user.name=ci commit -qm "context" && \
     export PATH="$HOME/.local/bin:$PATH" && \
-    GITHUB_TOKEN=$(cat /run/secrets/github_token) MISE_AUTO_ENV=true mise bootstrap --yes
+    bash /tmp/home2/install.sh /tmp/home2

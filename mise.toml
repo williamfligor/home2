@@ -191,7 +191,6 @@ pandoc = "latest"
 "~/.pi/agent/prompts/implement.md" = { source = "private_dot_pi/private_agent/prompts/implement.md", mode = "symlink" }
 "~/.pi/agent/prompts/scout-and-plan.md" = { source = "private_dot_pi/private_agent/prompts/scout-and-plan.md", mode = "symlink" }
 "~/.pi/agent/settings.json" = { source = "private_dot_pi/private_agent/settings.json", mode = "symlink" }
-"~/.pi/agent/skills/resolve-chezmoi-diff/SKILL.md" = { source = "private_dot_pi/private_agent/skills/resolve-chezmoi-diff/SKILL.md", mode = "symlink" }
 "~/.pi/agent/skills/review-git-status-diff/SKILL.md" = { source = "private_dot_pi/private_agent/skills/review-git-status-diff/SKILL.md", mode = "symlink" }
 "~/.pi/agent/skills/uv-package-manager/README.md" = { source = "private_dot_pi/private_agent/skills/uv-package-manager/README.md", mode = "symlink" }
 "~/.pi/agent/skills/uv-package-manager/references/advanced-patterns.md" = { source = "private_dot_pi/private_agent/skills/uv-package-manager/references/advanced-patterns.md", mode = "symlink" }
