@@ -15,7 +15,7 @@ windows, no bash**.
 | # | Decision | Choice |
 |---|----------|--------|
 | 1 | Repo role | **Same repo** — this repo (`home2`) is the global mise config + dotfiles source. Plan: `mise bootstrap --from-git williamfligor/home2 --yes` [x]. **Correction (implemented):** `--from-git` is documented-but-**unreleased** as of mise 2026.9.1 (current latest; the 2026.9.1 CLI has only `--from`/`--from-dir`). Its released realization — clone the repo into `$MISE_CONFIG_DIR` (~/.config/mise) so repo-root `mise.toml` is the global config, then `mise bootstrap --yes` — is what `install.sh` does. (2026.9.1's `--from <url>` is *one-shot*: it clones into `$MISE_DATA_DIR/bootstrap-repo`, applies dotfiles, but does **not** persist the config — `mise which node` fails afterward. Verified empirically → not suitable.) |
-| 2 | Encryption | **None needed.** (`private_dot_ssh/config` has no real secrets; keys are per-machine. Git identity already public today. See ssh handling below.) |
+| 2 | Encryption | **None needed.** (`ssh/config` has no real secrets; keys are per-machine. Git identity already public today. See ssh handling below.) |
 | 3 | OS-dependent handling | **mise platform environments** (`auto_env = true`) + `[tools] os=` + drop what we can. See below. |
 | 4 | Skills (`bootstrap.repos` can't strip) | **`bootstrap.repos` for whole-repo skills; in-repo skills symlinked to `~/.agents/skills`.** `[bootstrap.repos]` is whole-repo clone only — no stripComponents/include/sparse [x]. **Correction (implemented):** the grill-me tarball task was dropped (never used); all skills now land in `~/.agents/skills` — `[bootstrap.repos]` clones (avoid-ai-writing, humanizer) + `[dotfiles]` symlink-each of the repo `skills/` dir (review-git-status-diff, uv-package-manager, video-to-recipe). |
 | 5 | Per-script migration | See table below. |
@@ -112,9 +112,10 @@ mise.macos.toml      # macos/xbar/ + macos/KeyBindings/, mac-only tools, mac-onl
 mise.linux.toml      # linux-only (if any)
 mise.android.toml    # Termux-only (verify #12; fallback MISE_ENV=android)
 .miserc.toml         # auto_env = true
-tasks/               # mise tasks (autossh build, pi-extensions, ssh-keygen, grill-me)
-dot_config/, dot_local/, ...  # static dotfiles (no .tmpl)
-install.sh           # curl mise + (keygen if private repo) + mise bootstrap --from-git
+tasks/               # mise tasks (bootstrap-ssh-key, build-autossh, clean-osx-network,
+                     #   install-macos-apps, update-pi, update-pi-summary — file-tasks in config/mise/tasks/)
+config/, local/, pi/, ssh/, termux/, macos/, skills/, zshrc.d/   # dotfile sources (no .tmpl)
+install.sh           # curl mise + clone repo → ~/.config/mise + MISE_AUTO_ENV=true mise bootstrap --yes
 ```
 
 Notes:
@@ -131,16 +132,19 @@ Notes:
 
 ### Cutover checklist (per machine; run when ready to leave chezmoi)
 
-1. **Commit/push** the migration work on `main` (so `--from-git` fetches it).
+1. **Commit/push** the migration work on `main` (done — install.sh clones from it).
 2. **Back up / purge chezmoi state**: `chezmoi purge` (removes managed files) or back up
    `~/.local/share/chezmoi` first. Then remove `~/.config/chezmoi`.
 3. **Remove old clone**: the repo currently doubles as the chezmoi source at
-   `~/.local/share/chezmoi`; after purge it can be deleted (the next `mise bootstrap
-   --from-git` reclones it into `~/.config/mise`).
+   `~/.local/share/chezmoi`; after purge it can be deleted — `install.sh` clones it fresh
+   into `~/.config/mise`. (If you want `install.sh` available after deletion, use the curl
+   form in step 5 instead of a local `bash install.sh`.)
 4. **Remove `cz` aliases** from the shell if present (they were deleted from the repo;
    interactive sessions may still have them until re-sourced).
-5. **Bootstrap**: `bash install.sh` (curl mise → `mise bootstrap --from-git`). On macOS,
-   confirm the .app bundles install (postinstall → `install-macos-apps`).
+5. **Bootstrap**: run install.sh from the checkout **before** deleting it, or use the
+   published form: `curl -fsSL https://raw.githubusercontent.com/williamfligor/home2/main/install.sh | bash`
+   (curl mise → clone into ~/.config/mise → `MISE_AUTO_ENV=true mise bootstrap --yes`). On macOS,
+   confirm the .app bundles install (postinstall → `mise run install-macos-apps`).
 6. **Validate**: `mise bootstrap dotfiles apply --dry-run` shows converged; `mise bootstrap
    status` ok; smoke via `bash .test.sh`.
 
@@ -165,7 +169,8 @@ Everything below is committed on `main` and exercised by the green `bash .test.s
   Replaced with `mb*` aliases in `config/zsh/aliases.sh`: `mb` = `mise bootstrap`, `mbs` =
   `mise bootstrap dotfiles status`, `mbd` = diff, `mba` = apply, `mbu` = unapply, `mbadd` =
   add, `mbed` = edit (same-prefix naming as the old `cz`/`cza` aliases).
-- Scripts ported (final task + hooks); skill repos via `[bootstrap.repos]`; grill-me task.
+- Scripts ported (final task + hooks); skill repos via `[bootstrap.repos]`; grill-me task
+  (later removed — see below).
 - `install.sh`, rewritten `.test.sh`/`.Dockerfile` (which drives `install.sh` — the real
   fresh-machine script — against the local checkout), `.github/workflows` cache key,
   `.dockerignore`.
@@ -173,13 +178,14 @@ Everything below is committed on `main` and exercised by the green `bash .test.s
   realization of `--from-git` (see decision #1); once a mise release ships `--from-git`,
   `install.sh` can switch to it unchanged.
 - Verification greps: zero `.tmpl`/`.chezmoi*`/windows-branch/`cz`/`cza`/`ccd`/`run_onchange`/
-  `chezmoi-prune` references remain in tracked files.
+  `chezmoi-prune` artifact patterns remain in tracked files (the word "chezmoi" itself only
+  appears in this doc and in history comments).
 - **Chezmoi source prefixes removed**: `dot_`/`private_dot_`/`private_` are pure chezmoi source-
   dir conventions that mise never reads (git can only track filenames + the exec bit — it
   cannot represent `0600`, so `private_`'s perm meaning is lost under symlink mode anyway).
   All 87 sources renamed to plain names (`dot_zshrc`→`zshrc`, `private_dot_pi/private_agent`→
   `pi/agent`, `Library/private_Application Support`→`Library/Application Support`, …); the
-  exec bit on the PATH scripts (`local/bin/*`, now 16) and on `config/mise/tasks/*`
+  exec bit on the PATH scripts (`local/bin/*`, now 13) and on `config/mise/tasks/*`
   (`100755`) is preserved — that's all git tracks. No per-file `0600` support in
   mise (only inline `content = …` writes `0600`; see decision #1/#11). `~/.ssh/config` stays
   `0644` (non-secret; SSH only rejects world-*writable* config; the real key `id_rsa` is `0600`

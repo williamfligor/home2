@@ -26,11 +26,20 @@ set -euo pipefail
 REPO_URL="${1:-https://github.com/williamfligor/home2}"
 CONFIG_DIR="${HOME}/.config/mise"
 
-if ! command -v mise &>/dev/null && [[ ! -x "${HOME}/.local/bin/mise" ]]; then
+if [[ ! -x "${HOME}/.local/bin/mise" ]]; then
     echo "=== Installing mise ==="
     curl -fsSL https://mise.run | sh
+else
+    echo "=== mise already installed at ${HOME}/.local/bin/mise ==="
 fi
 export PATH="${HOME}/.local/bin:$PATH"
+
+if [[ -d "${CONFIG_DIR}" ]] && [[ ! -d "${CONFIG_DIR}/.git" ]]; then
+    echo "ERROR: ${CONFIG_DIR} exists and is not a git clone of this repo." >&2
+    echo "       Move it aside (e.g. mv ${CONFIG_DIR} ${CONFIG_DIR}.old) or remove it," >&2
+    echo "       then re-run this script. Existing mise config is never destroyed automatically." >&2
+    exit 1
+fi
 
 if [[ ! -d "${CONFIG_DIR}/.git" ]]; then
     echo "=== Cloning ${REPO_URL} into ${CONFIG_DIR} ==="

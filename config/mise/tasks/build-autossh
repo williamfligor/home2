@@ -21,8 +21,10 @@ if [[ ! -d "$AUTOSSH_SRC" ]]; then
   exit 0
 fi
 
-# mtime guard: binary exists AND is newer than the source tree -> up to date.
-if [[ -x "$AUTOSSH_BIN" ]] && [[ "$AUTOSSH_SRC" -ot "$AUTOSSH_BIN" ]]; then
+# mtime guard: binary exists AND no source file is newer than the binary -> up
+# to date. Uses find (not the directory mtime, which doesn't change when mise
+# refreshes file CONTENTS in place under the existing install dir).
+if [[ -x "$AUTOSSH_BIN" ]] && [[ -z "$(find "$AUTOSSH_SRC" -type f -newer "$AUTOSSH_BIN" -print -quit)" ]]; then
   echo "autossh: binary up to date"
   exit 0
 fi

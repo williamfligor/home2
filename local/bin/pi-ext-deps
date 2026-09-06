@@ -10,8 +10,9 @@ set -euo pipefail
 echo "=== Installing pi extension dependencies ==="
 
 # Hook processes don't inherit mise's PATH in 2026.9.1 (verified); resolve the
-# mise binary directly. `--` lets mise build the PATH from installed tools.
-MISE_BIN="${MISE_BIN:-$HOME/.local/bin/mise}"
+# mise binary directly (command -v first, then the install.sh default path).
+# `--` lets mise build the PATH from installed tools.
+MISE_BIN="${MISE_BIN:-$(command -v mise || echo "$HOME/.local/bin/mise")}"
 
 for dir in "$HOME"/.pi/agent/extensions/*/; do
   [[ -d "$dir" ]] || continue
