@@ -64,5 +64,5 @@
 # ── macOS-only dotfiles ──────────────────────────────────────────────────────
 # File-level symlinks. xbar plugins must stay executable (+x from git).
 [dotfiles]
-"~/Library/KeyBindings" = { source = "Library/KeyBindings", mode = "symlink" }
-"~/Library/Application Support/xbar/plugins" = { source = "Library/Application Support/xbar/plugins", mode = "symlink-each" }
+"~/Library/KeyBindings" = { source = "macos/KeyBindings", mode = "symlink" }
+"~/Library/Application Support/xbar/plugins" = { source = "macos/xbar", mode = "symlink-each" }

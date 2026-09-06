@@ -42,7 +42,7 @@ Recommended layout:
 
 ```
 mise.toml          # shared: [tools], [dotfiles], [tasks.bootstrap], [bootstrap.*]
-mise.macos.toml    # macOS-only: Library/ dotfiles, mac-only tools
+mise.macos.toml    # macOS-only: macos/xbar/ + macos/KeyBindings/ dotfiles, mac-only tools
 mise.linux.toml    # Linux-only dotfiles/tools
 mise.android.toml  # Termux-only (verify, then keep private_dot_termux) — fallback MISE_ENV=android
 .miserc.toml       # auto_env = true
@@ -108,7 +108,7 @@ subtree filtering, no sparse checkout [x, verified in docs]. Mapping for the thr
 
 ```
 mise.toml            # merged [tools] + [settings] + [dotfiles] + [tasks.bootstrap] + [bootstrap.*] + min_version
-mise.macos.toml      # Library/, mac-only tools, mac-only dotfiles
+mise.macos.toml      # macos/xbar/ + macos/KeyBindings/, mac-only tools, mac-only dotfiles
 mise.linux.toml      # linux-only (if any)
 mise.android.toml    # Termux-only (verify #12; fallback MISE_ENV=android)
 .miserc.toml         # auto_env = true
