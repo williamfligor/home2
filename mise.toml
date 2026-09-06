@@ -122,89 +122,39 @@ pandoc = "latest"
 # Runtime state trees (~/.config/nvim writes lazy-lock.json; ~/.pi writes
 # sqlite/node_modules; ~/.ssh/sockets) are never declared/linked.
 [dotfiles]
-# Shell
+# ── $HOME-root dotfiles (no directory to link) ───────────────────────────────
 "~/.zshrc" = { source = "zshrc", mode = "symlink" }
 "~/.zshenv" = { source = "zshenv", mode = "symlink" }
 "~/.gitconfig" = { source = "gitconfig", mode = "symlink" }
 "~/.dircolors" = { source = "dircolors", mode = "symlink" }
 "~/.p10k.zsh" = { source = "p10k.zsh", mode = "symlink" }
 "~/.tmux.conf" = { source = "tmux.conf", mode = "symlink" }
-"~/.config/zsh/aliases.sh" = { source = "config/zsh/aliases.sh", mode = "symlink" }
-"~/.config/zsh/functions.sh" = { source = "config/zsh/functions.sh", mode = "symlink" }
-"~/.config/zsh/env.sh" = { source = "config/zsh/env.sh", mode = "symlink" }
-"~/.zshrc.d/10-mise-plugin.zsh" = { source = "zshrc.d/10-mise-plugin.zsh", mode = "symlink" }
-"~/.zshrc.d/50-nono.zsh" = { source = "zshrc.d/50-nono.zsh", mode = "symlink" }
-"~/.zshrc.d/90-history-backup.zsh" = { source = "zshrc.d/90-history-backup.zsh", mode = "symlink" }
 
-# Shared app config
-"~/.config/bat/config" = { source = "config/bat/config", mode = "symlink" }
-"~/.config/bottom/bottom.toml" = { source = "config/bottom/bottom.toml", mode = "symlink" }
-"~/.config/ghostty/config" = { source = "config/ghostty/config", mode = "symlink" }
-"~/.config/git/ignore" = { source = "config/git/ignore", mode = "symlink" }
-"~/.config/nono/profiles/pi.json" = { source = "config/nono/profiles/pi.json", mode = "symlink" }
-"~/.config/yazi/init.lua" = { source = "config/yazi/init.lua", mode = "symlink" }
-"~/.config/yazi/keymap.toml" = { source = "config/yazi/keymap.toml", mode = "symlink" }
-"~/.config/yazi/plugins/confirm-quit.yazi/main.lua" = { source = "config/yazi/plugins/confirm-quit.yazi/main.lua", mode = "symlink" }
-"~/.config/yazi/plugins/folder-rules.yazi/main.lua" = { source = "config/yazi/plugins/folder-rules.yazi/main.lua", mode = "symlink" }
-"~/.config/yazi/plugins/smart-tab.yazi/main.lua" = { source = "config/yazi/plugins/smart-tab.yazi/main.lua", mode = "symlink" }
-"~/.config/zellij/config.kdl" = { source = "config/zellij/config.kdl", mode = "symlink" }
+# ── Fully-owned, static dirs → whole-folder symlink (one link; nothing else
+#    lives in the target, nothing writes there at runtime) ───────────────────
+"~/.config/zsh" = { source = "config/zsh", mode = "symlink" }
+"~/.zshrc.d" = { source = "zshrc.d", mode = "symlink" }
+"~/.config/bat" = { source = "config/bat", mode = "symlink" }
+"~/.config/bottom" = { source = "config/bottom", mode = "symlink" }
+"~/.config/ghostty" = { source = "config/ghostty", mode = "symlink" }
+"~/.config/git" = { source = "config/git", mode = "symlink" }
+"~/.config/zellij" = { source = "config/zellij", mode = "symlink" }
+"~/.config/yazi" = { source = "config/yazi", mode = "symlink" }
+"~/.config/mise/tasks" = { source = "config/mise/tasks", mode = "symlink" }
 
-# Neovim (file-level: nvim writes lazy-lock.json next to these)
-"~/.config/nvim/init.lua" = { source = "config/nvim/init.lua", mode = "symlink" }
-"~/.config/nvim/lua/config/autocmds.lua" = { source = "config/nvim/lua/config/autocmds.lua", mode = "symlink" }
-"~/.config/nvim/lua/config/keymaps.lua" = { source = "config/nvim/lua/config/keymaps.lua", mode = "symlink" }
-"~/.config/nvim/lua/config/lazy.lua" = { source = "config/nvim/lua/config/lazy.lua", mode = "symlink" }
-"~/.config/nvim/lua/config/options.lua" = { source = "config/nvim/lua/config/options.lua", mode = "symlink" }
-"~/.config/nvim/lua/plugins/init.lua" = { source = "config/nvim/lua/plugins/init.lua", mode = "symlink" }
-
-# ~/.local/bin — one symlink per executable (keeps each file's +x)
+# ── Dirs with unmanaged neighbors / runtime writes → symlink-each (links the
+#    individual files, preserves what we don't own):
+#    ~/.config/nvim writes lazy-lock.json + lazy/; ~/.pi/agent holds auth.json,
+#    sessions/, git/, tmp/, npm/, *.sqlite; ~/.config/nono/profiles gains
+#    profiles at runtime (`nono profile promote`); ~/.local/bin gains non-repo
+#    tools (e.g. autossh). ────────────────────────────────────────────────────
+"~/.config/nvim" = { source = "config/nvim", mode = "symlink-each" }
+"~/.config/nono/profiles" = { source = "config/nono/profiles", mode = "symlink-each" }
+"~/.pi/agent" = { source = "pi/agent", mode = "symlink-each" }
 "~/.local/bin" = { source = "local/bin", mode = "symlink-each" }
 
-# SSH — config file only; keys stay per-machine, sockets/ is runtime state
+# ── Single file inside a private/shared dir ─────────────────────────────────
 "~/.ssh/config" = { source = "ssh/config", mode = "symlink" }
-
-# Mise global tasks (task files; discovered from ~/.config/mise/tasks)
-"~/.config/mise/tasks/update-pi" = { source = "config/mise/tasks/update-pi", mode = "symlink" }
-"~/.config/mise/tasks/update-pi-summary" = { source = "config/mise/tasks/update-pi-summary", mode = "symlink" }
-"~/.config/mise/tasks/bootstrap-ssh-key" = { source = "config/mise/tasks/bootstrap-ssh-key", mode = "symlink" }
-"~/.config/mise/tasks/build-autossh" = { source = "config/mise/tasks/build-autossh", mode = "symlink" }
-"~/.config/mise/tasks/fetch-grill-me" = { source = "config/mise/tasks/fetch-grill-me", mode = "symlink" }
-"~/.config/mise/tasks/install-macos-apps" = { source = "config/mise/tasks/install-macos-apps", mode = "symlink" }
-
-# Pi agent files — file-level only. ~/.pi/agent/{auth.json,sessions,git,tmp,npm,
-# pi-web.sqlite,extensions/*/node_modules} are runtime state and stay unmanaged.
-"~/.pi/agent/agents/researcher.md" = { source = "pi/agent/agents/researcher.md", mode = "symlink" }
-"~/.pi/agent/extensions/answer.ts" = { source = "pi/agent/extensions/answer.ts", mode = "symlink" }
-"~/.pi/agent/extensions/matplotlib-agg.ts" = { source = "pi/agent/extensions/matplotlib-agg.ts", mode = "symlink" }
-"~/.pi/agent/extensions/notify.ts" = { source = "pi/agent/extensions/notify.ts", mode = "symlink" }
-"~/.pi/agent/extensions/pi-tool-display/config.json" = { source = "pi/agent/extensions/pi-tool-display/config.json", mode = "symlink" }
-"~/.pi/agent/extensions/review.ts" = { source = "pi/agent/extensions/review.ts", mode = "symlink" }
-"~/.pi/agent/extensions/sandbox.json" = { source = "pi/agent/extensions/sandbox.json", mode = "symlink" }
-"~/.pi/agent/extensions/slash-guard.ts" = { source = "pi/agent/extensions/slash-guard.ts", mode = "symlink" }
-"~/.pi/agent/extensions/sort-packages.ts" = { source = "pi/agent/extensions/sort-packages.ts", mode = "symlink" }
-"~/.pi/agent/extensions/tools.ts" = { source = "pi/agent/extensions/tools.ts", mode = "symlink" }
-"~/.pi/agent/extensions/uv.ts" = { source = "pi/agent/extensions/uv.ts", mode = "symlink" }
-"~/.pi/agent/extensions/web-gate.ts" = { source = "pi/agent/extensions/web-gate.ts", mode = "symlink" }
-"~/.pi/agent/extensions/web-search.ts" = { source = "pi/agent/extensions/web-search.ts", mode = "symlink" }
-"~/.pi/agent/extensions/whimsical.ts" = { source = "pi/agent/extensions/whimsical.ts", mode = "symlink" }
-"~/.pi/agent/models.json" = { source = "pi/agent/models.json", mode = "symlink" }
-"~/.pi/agent/pi-vcc-config.json" = { source = "pi/agent/pi-vcc-config.json", mode = "symlink" }
-"~/.pi/agent/prompts/brainstorm.md" = { source = "pi/agent/prompts/brainstorm.md", mode = "symlink" }
-"~/.pi/agent/prompts/execute-plan.md" = { source = "pi/agent/prompts/execute-plan.md", mode = "symlink" }
-"~/.pi/agent/prompts/implement-and-review.md" = { source = "pi/agent/prompts/implement-and-review.md", mode = "symlink" }
-"~/.pi/agent/prompts/implement.md" = { source = "pi/agent/prompts/implement.md", mode = "symlink" }
-"~/.pi/agent/prompts/scout-and-plan.md" = { source = "pi/agent/prompts/scout-and-plan.md", mode = "symlink" }
-"~/.pi/agent/settings.json" = { source = "pi/agent/settings.json", mode = "symlink" }
-"~/.pi/agent/skills/review-git-status-diff/SKILL.md" = { source = "pi/agent/skills/review-git-status-diff/SKILL.md", mode = "symlink" }
-"~/.pi/agent/skills/uv-package-manager/README.md" = { source = "pi/agent/skills/uv-package-manager/README.md", mode = "symlink" }
-"~/.pi/agent/skills/uv-package-manager/references/advanced-patterns.md" = { source = "pi/agent/skills/uv-package-manager/references/advanced-patterns.md", mode = "symlink" }
-"~/.pi/agent/skills/uv-package-manager/SKILL.md" = { source = "pi/agent/skills/uv-package-manager/SKILL.md", mode = "symlink" }
-"~/.pi/agent/skills/uv-package-manager/uv-package-manager/.keep" = { source = "pi/agent/skills/uv-package-manager/uv-package-manager/.keep", mode = "symlink" }
-"~/.pi/agent/skills/video-to-recipe/scripts/download.py" = { source = "pi/agent/skills/video-to-recipe/scripts/download.py", mode = "symlink" }
-"~/.pi/agent/skills/video-to-recipe/scripts/ocr-extraction.py" = { source = "pi/agent/skills/video-to-recipe/scripts/ocr-extraction.py", mode = "symlink" }
-"~/.pi/agent/skills/video-to-recipe/scripts/transcribe.py" = { source = "pi/agent/skills/video-to-recipe/scripts/transcribe.py", mode = "symlink" }
-"~/.pi/agent/skills/video-to-recipe/SKILL.md" = { source = "pi/agent/skills/video-to-recipe/SKILL.md", mode = "symlink" }
-
 # ── Bootstrap (final task, hooks, skill repos) ───────────────────────────────
 # The bootstrap final task runs on every `mise bootstrap` — each script is
 # idempotent (key exists / mtime guard / sha marker). `{{ config_root }}` is the

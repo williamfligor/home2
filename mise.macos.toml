@@ -64,6 +64,5 @@
 # ── macOS-only dotfiles ──────────────────────────────────────────────────────
 # File-level symlinks. xbar plugins must stay executable (+x from git).
 [dotfiles]
-"~/Library/KeyBindings/DefaultKeyBinding.dict" = { source = "Library/KeyBindings/DefaultKeyBinding.dict", mode = "symlink" }
-"~/Library/Application Support/xbar/plugins/jupyter" = { source = "Library/Application Support/xbar/plugins/jupyter", mode = "symlink" }
-"~/Library/Application Support/xbar/plugins/sshtunnel" = { source = "Library/Application Support/xbar/plugins/sshtunnel", mode = "symlink" }
+"~/Library/KeyBindings" = { source = "Library/KeyBindings", mode = "symlink" }
+"~/Library/Application Support/xbar/plugins" = { source = "Library/Application Support/xbar/plugins", mode = "symlink-each" }

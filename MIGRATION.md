@@ -27,7 +27,7 @@ windows, no bash**.
 | 11 | Fresh-machine auth (reviewer high) | **Keep repo public** (status quo — keys are per-machine, never committed). If it ever goes private: `install.sh` generates the ssh key *before* `mise bootstrap --from-git`, mirroring current `bootstrap.sh`. |
 | 12 | Termux platform file (reviewer low) | **Verify** mise reports `os=android` under platform envs before promising `mise.android.toml` [docs list linux/macos/windows; Termux has known mise build issues]. Fallback: explicit `MISE_ENV=android` selection in Termux's `.miserc.toml`. |
 | 13 | Minimum mise version | Pin `min_version` in repo-root config (bootstrap/dotfiles/auto_env are recent features; confirm against the version that ships them). |
-| 14 | Symlink granularity rule (reviewer medium) | File-level links only for trees that accumulate runtime writes (`~/.config/nvim` writes `lazy-lock.json`; `~/.pi` writes sqlite/node_modules). Directory links only for fully-static dirs. Prevents runtime writes from landing in the git tree and breaking `--from-git` pulls. |
+| 14 | Symlink granularity rule (reviewer medium) | **Folder-first, file-level only where needed.** Whole-folder symlink for fully-owned static dirs (`~/.config/mise/tasks`, `config/zsh`, `~/.zshrc.d`, `bat`, `bottom`, `ghostty`, `git`, `zellij`, `yazi`, `~/.termux`, `~/Library/KeyBindings`). `symlink-each` (links individual files, preserves unmanaged neighbors) for trees that accumulate runtime writes or unmanaged neighbors (`~/.config/nvim` writes `lazy-lock.json` + `lazy/`; `~/.pi/agent` holds auth/sessions/npm/sqlite; `~/.config/nono/profiles` gains profiles via `nono profile promote`; `~/.local/bin` gains non-repo tools like `autossh`). Never whole-dir-link those. Root dotfiles + `~/.ssh/config` stay single-file links. Verified: re-applying a file-link → dir-link switch needs `--force` once; fresh machines apply cleanly. |
 
 ## OS-dependent handling (decision #3)
 
@@ -188,8 +188,18 @@ Everything below is committed on `main` and exercised by the green `bash .test.s
   apply). `install-macos-apps` also became a file-task (config/mise/tasks) since it's tightly
   mise-coupled: mac tool `postinstall` now runs `$HOME/.local/bin/mise run install-macos-apps
   <app>` (absolute mise path — no PATH dep; the task env provides uv + mise, and
-  `MISE_TOOL_INSTALL_PATH` propagates so install_one works). `local/bin` is now purely PATH
-  helper scripts (16): the pi-ext-deps hook + 14 user helpers.
+  `MISE_TOOL_INSTALL_PATH` propagates so install_one works). `clean-osx-network` (one-off
+  macOS network-location reset) also became a file-task; `configure_macos` (a `defaults write`
+  script, unreferenced) was **removed** — its settings can be re-declared natively via
+  `[bootstrap.macos.defaults]` if wanted. `local/bin` is now purely PATH helper scripts (13):
+  the pi-ext-deps hook + 12 user helpers.
+- **[dotfiles] consolidated to folder links**: 64 file-level entries → 21. Whole-folder
+  symlinks for fully-owned static dirs (`~/.config/mise/tasks`, `~/.config/zsh`, `~/.zshrc.d`,
+  `~/.config/{bat,bottom,ghostty,git,zellij,yazi}`, `~/.termux`, `~/Library/KeyBindings`);
+  `symlink-each` for dirs with unmanaged neighbors / runtime writes (`~/.config/nvim`,
+  `~/.config/nono/profiles`, `~/.pi/agent`, `~/.local/bin` — still file-level, unmanaged
+  neighbors preserved); individual links only for $HOME-root dotfiles and `~/.ssh/config`.
+  Verified: apply reconciles individual→dir links with `--force` once; fresh machines clean.
 
 Open items still apply: Termux `mise.android.toml` requires `MISE_ENV=android` (mise has no
 android platform env); `min_version` is pinned to the Docker-validated 2026.9.1 (tested floor,

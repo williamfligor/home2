@@ -7,5 +7,4 @@
 # See MIGRATION.md decision #12.
 
 [dotfiles]
-"~/.termux/colors.properties" = { source = "termux/colors.properties", mode = "symlink" }
-"~/.termux/termux.properties" = { source = "termux/termux.properties", mode = "symlink" }
+"~/.termux" = { source = "termux", mode = "symlink" }
