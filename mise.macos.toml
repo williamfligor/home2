@@ -3,7 +3,7 @@
 #
 # Mac .app bundles keep os = ["macos"] (defense-in-depth: if this file is ever
 # merged elsewhere the restriction still holds). postinstall runs
-# install-macos-apps (dot_local/bin) to copy the .app into ~/Applications/ —
+# install-macos-apps (local/bin) to copy the .app into ~/Applications/ —
 # safe because bootstrap applies [dotfiles] (step 9) before `mise install` (step 15).
 
 [tools]
@@ -63,5 +63,5 @@
 # File-level symlinks. xbar plugins must stay executable (+x from git).
 [dotfiles]
 "~/Library/KeyBindings/DefaultKeyBinding.dict" = { source = "Library/KeyBindings/DefaultKeyBinding.dict", mode = "symlink" }
-"~/Library/Application Support/xbar/plugins/jupyter" = { source = "Library/private_Application Support/xbar/plugins/jupyter", mode = "symlink" }
-"~/Library/Application Support/xbar/plugins/sshtunnel" = { source = "Library/private_Application Support/xbar/plugins/sshtunnel", mode = "symlink" }
+"~/Library/Application Support/xbar/plugins/jupyter" = { source = "Library/Application Support/xbar/plugins/jupyter", mode = "symlink" }
+"~/Library/Application Support/xbar/plugins/sshtunnel" = { source = "Library/Application Support/xbar/plugins/sshtunnel", mode = "symlink" }

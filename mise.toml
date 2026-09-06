@@ -123,83 +123,83 @@ pandoc = "latest"
 # sqlite/node_modules; ~/.ssh/sockets) are never declared/linked.
 [dotfiles]
 # Shell
-"~/.zshrc" = { source = "dot_zshrc", mode = "symlink" }
-"~/.zshenv" = { source = "dot_zshenv", mode = "symlink" }
-"~/.gitconfig" = { source = "dot_gitconfig", mode = "symlink" }
-"~/.dircolors" = { source = "dot_dircolors", mode = "symlink" }
-"~/.p10k.zsh" = { source = "dot_p10k.zsh", mode = "symlink" }
-"~/.tmux.conf" = { source = "dot_tmux.conf", mode = "symlink" }
-"~/.config/zsh/aliases.sh" = { source = "dot_config/zsh/aliases.sh", mode = "symlink" }
-"~/.config/zsh/functions.sh" = { source = "dot_config/zsh/functions.sh", mode = "symlink" }
-"~/.config/zsh/env.sh" = { source = "dot_config/zsh/env.sh", mode = "symlink" }
-"~/.zshrc.d/10-mise-plugin.zsh" = { source = "dot_zshrc.d/10-mise-plugin.zsh", mode = "symlink" }
-"~/.zshrc.d/50-nono.zsh" = { source = "dot_zshrc.d/50-nono.zsh", mode = "symlink" }
-"~/.zshrc.d/90-history-backup.zsh" = { source = "dot_zshrc.d/90-history-backup.zsh", mode = "symlink" }
+"~/.zshrc" = { source = "zshrc", mode = "symlink" }
+"~/.zshenv" = { source = "zshenv", mode = "symlink" }
+"~/.gitconfig" = { source = "gitconfig", mode = "symlink" }
+"~/.dircolors" = { source = "dircolors", mode = "symlink" }
+"~/.p10k.zsh" = { source = "p10k.zsh", mode = "symlink" }
+"~/.tmux.conf" = { source = "tmux.conf", mode = "symlink" }
+"~/.config/zsh/aliases.sh" = { source = "config/zsh/aliases.sh", mode = "symlink" }
+"~/.config/zsh/functions.sh" = { source = "config/zsh/functions.sh", mode = "symlink" }
+"~/.config/zsh/env.sh" = { source = "config/zsh/env.sh", mode = "symlink" }
+"~/.zshrc.d/10-mise-plugin.zsh" = { source = "zshrc.d/10-mise-plugin.zsh", mode = "symlink" }
+"~/.zshrc.d/50-nono.zsh" = { source = "zshrc.d/50-nono.zsh", mode = "symlink" }
+"~/.zshrc.d/90-history-backup.zsh" = { source = "zshrc.d/90-history-backup.zsh", mode = "symlink" }
 
 # Shared app config
-"~/.config/bat/config" = { source = "dot_config/bat/config", mode = "symlink" }
-"~/.config/bottom/bottom.toml" = { source = "dot_config/bottom/bottom.toml", mode = "symlink" }
-"~/.config/ghostty/config" = { source = "dot_config/ghostty/config", mode = "symlink" }
-"~/.config/git/ignore" = { source = "dot_config/git/ignore", mode = "symlink" }
-"~/.config/nono/profiles/pi.json" = { source = "dot_config/nono/profiles/pi.json", mode = "symlink" }
-"~/.config/yazi/init.lua" = { source = "dot_config/yazi/init.lua", mode = "symlink" }
-"~/.config/yazi/keymap.toml" = { source = "dot_config/yazi/keymap.toml", mode = "symlink" }
-"~/.config/yazi/plugins/confirm-quit.yazi/main.lua" = { source = "dot_config/yazi/plugins/confirm-quit.yazi/main.lua", mode = "symlink" }
-"~/.config/yazi/plugins/folder-rules.yazi/main.lua" = { source = "dot_config/yazi/plugins/folder-rules.yazi/main.lua", mode = "symlink" }
-"~/.config/yazi/plugins/smart-tab.yazi/main.lua" = { source = "dot_config/yazi/plugins/smart-tab.yazi/main.lua", mode = "symlink" }
-"~/.config/zellij/config.kdl" = { source = "dot_config/zellij/config.kdl", mode = "symlink" }
+"~/.config/bat/config" = { source = "config/bat/config", mode = "symlink" }
+"~/.config/bottom/bottom.toml" = { source = "config/bottom/bottom.toml", mode = "symlink" }
+"~/.config/ghostty/config" = { source = "config/ghostty/config", mode = "symlink" }
+"~/.config/git/ignore" = { source = "config/git/ignore", mode = "symlink" }
+"~/.config/nono/profiles/pi.json" = { source = "config/nono/profiles/pi.json", mode = "symlink" }
+"~/.config/yazi/init.lua" = { source = "config/yazi/init.lua", mode = "symlink" }
+"~/.config/yazi/keymap.toml" = { source = "config/yazi/keymap.toml", mode = "symlink" }
+"~/.config/yazi/plugins/confirm-quit.yazi/main.lua" = { source = "config/yazi/plugins/confirm-quit.yazi/main.lua", mode = "symlink" }
+"~/.config/yazi/plugins/folder-rules.yazi/main.lua" = { source = "config/yazi/plugins/folder-rules.yazi/main.lua", mode = "symlink" }
+"~/.config/yazi/plugins/smart-tab.yazi/main.lua" = { source = "config/yazi/plugins/smart-tab.yazi/main.lua", mode = "symlink" }
+"~/.config/zellij/config.kdl" = { source = "config/zellij/config.kdl", mode = "symlink" }
 
 # Neovim (file-level: nvim writes lazy-lock.json next to these)
-"~/.config/nvim/init.lua" = { source = "dot_config/nvim/init.lua", mode = "symlink" }
-"~/.config/nvim/lua/config/autocmds.lua" = { source = "dot_config/nvim/lua/config/autocmds.lua", mode = "symlink" }
-"~/.config/nvim/lua/config/keymaps.lua" = { source = "dot_config/nvim/lua/config/keymaps.lua", mode = "symlink" }
-"~/.config/nvim/lua/config/lazy.lua" = { source = "dot_config/nvim/lua/config/lazy.lua", mode = "symlink" }
-"~/.config/nvim/lua/config/options.lua" = { source = "dot_config/nvim/lua/config/options.lua", mode = "symlink" }
-"~/.config/nvim/lua/plugins/init.lua" = { source = "dot_config/nvim/lua/plugins/init.lua", mode = "symlink" }
+"~/.config/nvim/init.lua" = { source = "config/nvim/init.lua", mode = "symlink" }
+"~/.config/nvim/lua/config/autocmds.lua" = { source = "config/nvim/lua/config/autocmds.lua", mode = "symlink" }
+"~/.config/nvim/lua/config/keymaps.lua" = { source = "config/nvim/lua/config/keymaps.lua", mode = "symlink" }
+"~/.config/nvim/lua/config/lazy.lua" = { source = "config/nvim/lua/config/lazy.lua", mode = "symlink" }
+"~/.config/nvim/lua/config/options.lua" = { source = "config/nvim/lua/config/options.lua", mode = "symlink" }
+"~/.config/nvim/lua/plugins/init.lua" = { source = "config/nvim/lua/plugins/init.lua", mode = "symlink" }
 
 # ~/.local/bin — one symlink per executable (keeps each file's +x)
-"~/.local/bin" = { source = "dot_local/bin", mode = "symlink-each" }
+"~/.local/bin" = { source = "local/bin", mode = "symlink-each" }
 
 # SSH — config file only; keys stay per-machine, sockets/ is runtime state
-"~/.ssh/config" = { source = "private_dot_ssh/config", mode = "symlink" }
+"~/.ssh/config" = { source = "ssh/config", mode = "symlink" }
 
 # Mise global tasks (task files; discovered from ~/.config/mise/tasks)
-"~/.config/mise/tasks/update-pi" = { source = "dot_config/mise/tasks/update-pi", mode = "symlink" }
-"~/.config/mise/tasks/update-pi-summary" = { source = "dot_config/mise/tasks/update-pi-summary", mode = "symlink" }
+"~/.config/mise/tasks/update-pi" = { source = "config/mise/tasks/update-pi", mode = "symlink" }
+"~/.config/mise/tasks/update-pi-summary" = { source = "config/mise/tasks/update-pi-summary", mode = "symlink" }
 
 # Pi agent files — file-level only. ~/.pi/agent/{auth.json,sessions,git,tmp,npm,
 # pi-web.sqlite,extensions/*/node_modules} are runtime state and stay unmanaged.
-"~/.pi/agent/agents/researcher.md" = { source = "private_dot_pi/private_agent/agents/researcher.md", mode = "symlink" }
-"~/.pi/agent/extensions/answer.ts" = { source = "private_dot_pi/private_agent/extensions/answer.ts", mode = "symlink" }
-"~/.pi/agent/extensions/matplotlib-agg.ts" = { source = "private_dot_pi/private_agent/extensions/matplotlib-agg.ts", mode = "symlink" }
-"~/.pi/agent/extensions/notify.ts" = { source = "private_dot_pi/private_agent/extensions/notify.ts", mode = "symlink" }
-"~/.pi/agent/extensions/pi-tool-display/config.json" = { source = "private_dot_pi/private_agent/extensions/pi-tool-display/config.json", mode = "symlink" }
-"~/.pi/agent/extensions/review.ts" = { source = "private_dot_pi/private_agent/extensions/review.ts", mode = "symlink" }
-"~/.pi/agent/extensions/sandbox.json" = { source = "private_dot_pi/private_agent/extensions/sandbox.json", mode = "symlink" }
-"~/.pi/agent/extensions/slash-guard.ts" = { source = "private_dot_pi/private_agent/extensions/slash-guard.ts", mode = "symlink" }
-"~/.pi/agent/extensions/sort-packages.ts" = { source = "private_dot_pi/private_agent/extensions/sort-packages.ts", mode = "symlink" }
-"~/.pi/agent/extensions/tools.ts" = { source = "private_dot_pi/private_agent/extensions/tools.ts", mode = "symlink" }
-"~/.pi/agent/extensions/uv.ts" = { source = "private_dot_pi/private_agent/extensions/uv.ts", mode = "symlink" }
-"~/.pi/agent/extensions/web-gate.ts" = { source = "private_dot_pi/private_agent/extensions/web-gate.ts", mode = "symlink" }
-"~/.pi/agent/extensions/web-search.ts" = { source = "private_dot_pi/private_agent/extensions/web-search.ts", mode = "symlink" }
-"~/.pi/agent/extensions/whimsical.ts" = { source = "private_dot_pi/private_agent/extensions/whimsical.ts", mode = "symlink" }
-"~/.pi/agent/models.json" = { source = "private_dot_pi/private_agent/models.json", mode = "symlink" }
-"~/.pi/agent/pi-vcc-config.json" = { source = "private_dot_pi/private_agent/pi-vcc-config.json", mode = "symlink" }
-"~/.pi/agent/prompts/brainstorm.md" = { source = "private_dot_pi/private_agent/prompts/brainstorm.md", mode = "symlink" }
-"~/.pi/agent/prompts/execute-plan.md" = { source = "private_dot_pi/private_agent/prompts/execute-plan.md", mode = "symlink" }
-"~/.pi/agent/prompts/implement-and-review.md" = { source = "private_dot_pi/private_agent/prompts/implement-and-review.md", mode = "symlink" }
-"~/.pi/agent/prompts/implement.md" = { source = "private_dot_pi/private_agent/prompts/implement.md", mode = "symlink" }
-"~/.pi/agent/prompts/scout-and-plan.md" = { source = "private_dot_pi/private_agent/prompts/scout-and-plan.md", mode = "symlink" }
-"~/.pi/agent/settings.json" = { source = "private_dot_pi/private_agent/settings.json", mode = "symlink" }
-"~/.pi/agent/skills/review-git-status-diff/SKILL.md" = { source = "private_dot_pi/private_agent/skills/review-git-status-diff/SKILL.md", mode = "symlink" }
-"~/.pi/agent/skills/uv-package-manager/README.md" = { source = "private_dot_pi/private_agent/skills/uv-package-manager/README.md", mode = "symlink" }
-"~/.pi/agent/skills/uv-package-manager/references/advanced-patterns.md" = { source = "private_dot_pi/private_agent/skills/uv-package-manager/references/advanced-patterns.md", mode = "symlink" }
-"~/.pi/agent/skills/uv-package-manager/SKILL.md" = { source = "private_dot_pi/private_agent/skills/uv-package-manager/SKILL.md", mode = "symlink" }
-"~/.pi/agent/skills/uv-package-manager/uv-package-manager/.keep" = { source = "private_dot_pi/private_agent/skills/uv-package-manager/uv-package-manager/.keep", mode = "symlink" }
-"~/.pi/agent/skills/video-to-recipe/scripts/download.py" = { source = "private_dot_pi/private_agent/skills/video-to-recipe/scripts/download.py", mode = "symlink" }
-"~/.pi/agent/skills/video-to-recipe/scripts/ocr-extraction.py" = { source = "private_dot_pi/private_agent/skills/video-to-recipe/scripts/ocr-extraction.py", mode = "symlink" }
-"~/.pi/agent/skills/video-to-recipe/scripts/transcribe.py" = { source = "private_dot_pi/private_agent/skills/video-to-recipe/scripts/transcribe.py", mode = "symlink" }
-"~/.pi/agent/skills/video-to-recipe/SKILL.md" = { source = "private_dot_pi/private_agent/skills/video-to-recipe/SKILL.md", mode = "symlink" }
+"~/.pi/agent/agents/researcher.md" = { source = "pi/agent/agents/researcher.md", mode = "symlink" }
+"~/.pi/agent/extensions/answer.ts" = { source = "pi/agent/extensions/answer.ts", mode = "symlink" }
+"~/.pi/agent/extensions/matplotlib-agg.ts" = { source = "pi/agent/extensions/matplotlib-agg.ts", mode = "symlink" }
+"~/.pi/agent/extensions/notify.ts" = { source = "pi/agent/extensions/notify.ts", mode = "symlink" }
+"~/.pi/agent/extensions/pi-tool-display/config.json" = { source = "pi/agent/extensions/pi-tool-display/config.json", mode = "symlink" }
+"~/.pi/agent/extensions/review.ts" = { source = "pi/agent/extensions/review.ts", mode = "symlink" }
+"~/.pi/agent/extensions/sandbox.json" = { source = "pi/agent/extensions/sandbox.json", mode = "symlink" }
+"~/.pi/agent/extensions/slash-guard.ts" = { source = "pi/agent/extensions/slash-guard.ts", mode = "symlink" }
+"~/.pi/agent/extensions/sort-packages.ts" = { source = "pi/agent/extensions/sort-packages.ts", mode = "symlink" }
+"~/.pi/agent/extensions/tools.ts" = { source = "pi/agent/extensions/tools.ts", mode = "symlink" }
+"~/.pi/agent/extensions/uv.ts" = { source = "pi/agent/extensions/uv.ts", mode = "symlink" }
+"~/.pi/agent/extensions/web-gate.ts" = { source = "pi/agent/extensions/web-gate.ts", mode = "symlink" }
+"~/.pi/agent/extensions/web-search.ts" = { source = "pi/agent/extensions/web-search.ts", mode = "symlink" }
+"~/.pi/agent/extensions/whimsical.ts" = { source = "pi/agent/extensions/whimsical.ts", mode = "symlink" }
+"~/.pi/agent/models.json" = { source = "pi/agent/models.json", mode = "symlink" }
+"~/.pi/agent/pi-vcc-config.json" = { source = "pi/agent/pi-vcc-config.json", mode = "symlink" }
+"~/.pi/agent/prompts/brainstorm.md" = { source = "pi/agent/prompts/brainstorm.md", mode = "symlink" }
+"~/.pi/agent/prompts/execute-plan.md" = { source = "pi/agent/prompts/execute-plan.md", mode = "symlink" }
+"~/.pi/agent/prompts/implement-and-review.md" = { source = "pi/agent/prompts/implement-and-review.md", mode = "symlink" }
+"~/.pi/agent/prompts/implement.md" = { source = "pi/agent/prompts/implement.md", mode = "symlink" }
+"~/.pi/agent/prompts/scout-and-plan.md" = { source = "pi/agent/prompts/scout-and-plan.md", mode = "symlink" }
+"~/.pi/agent/settings.json" = { source = "pi/agent/settings.json", mode = "symlink" }
+"~/.pi/agent/skills/review-git-status-diff/SKILL.md" = { source = "pi/agent/skills/review-git-status-diff/SKILL.md", mode = "symlink" }
+"~/.pi/agent/skills/uv-package-manager/README.md" = { source = "pi/agent/skills/uv-package-manager/README.md", mode = "symlink" }
+"~/.pi/agent/skills/uv-package-manager/references/advanced-patterns.md" = { source = "pi/agent/skills/uv-package-manager/references/advanced-patterns.md", mode = "symlink" }
+"~/.pi/agent/skills/uv-package-manager/SKILL.md" = { source = "pi/agent/skills/uv-package-manager/SKILL.md", mode = "symlink" }
+"~/.pi/agent/skills/uv-package-manager/uv-package-manager/.keep" = { source = "pi/agent/skills/uv-package-manager/uv-package-manager/.keep", mode = "symlink" }
+"~/.pi/agent/skills/video-to-recipe/scripts/download.py" = { source = "pi/agent/skills/video-to-recipe/scripts/download.py", mode = "symlink" }
+"~/.pi/agent/skills/video-to-recipe/scripts/ocr-extraction.py" = { source = "pi/agent/skills/video-to-recipe/scripts/ocr-extraction.py", mode = "symlink" }
+"~/.pi/agent/skills/video-to-recipe/scripts/transcribe.py" = { source = "pi/agent/skills/video-to-recipe/scripts/transcribe.py", mode = "symlink" }
+"~/.pi/agent/skills/video-to-recipe/SKILL.md" = { source = "pi/agent/skills/video-to-recipe/SKILL.md", mode = "symlink" }
 
 # ── Bootstrap (final task, hooks, skill repos) ───────────────────────────────
 # The bootstrap final task runs on every `mise bootstrap` — each script is
@@ -208,7 +208,7 @@ pandoc = "latest"
 
 [tasks.bootstrap]
 # run commands are executed via sh; `~` tilde-expands there. The scripts are
-# symlinked into ~/.local/bin by [dotfiles] (symlink-each of dot_local/bin),
+# symlinked into ~/.local/bin by [dotfiles] (symlink-each of local/bin),
 # which applies before the final task. {{ config_root }} templating is not
 # available in 2026.9.1 (verified), hence the HOME-relative paths.
 run = [
