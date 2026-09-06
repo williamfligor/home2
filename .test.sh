@@ -24,14 +24,14 @@ $RUNNER buildx build \
     --progress=plain \
     "${CACHE_ARGS[@]}" \
     --secret "id=github_token,env=GITHUB_TOKEN" \
-    -t chezmoi-test -f .Dockerfile . # 2>&1 | tail -50
+    -t home2-test -f .Dockerfile . # 2>&1 | tail -50
 
 # ── Smoke test: bootstrap outcome ────────────────────────────
 # The image was built by running the full `mise bootstrap` (see .Dockerfile),
 # so this asserts the machine state it produced.
 echo ""
 echo "=== Bootstrap smoke test ==="
-$RUNNER run --rm chezmoi-test zsh -ic '
+$RUNNER run --rm home2-test zsh -ic '
     echo "[0] bootstrap state (idempotent re-run / dry-run)..."
     if mise bootstrap dotfiles apply --dry-run >/tmp/dry.log 2>&1; then
         echo "  ✓ dotfiles converged (dry-run: no changes needed)"
@@ -62,7 +62,7 @@ $RUNNER run --rm chezmoi-test zsh -ic '
 # ── Smoke test: mise ─────────────────────────────────────────────
 echo ""
 echo "=== Mise smoke test ==="
-$RUNNER run --rm chezmoi-test zsh -ic '
+$RUNNER run --rm home2-test zsh -ic '
     echo "[1] mise binary..."
     if command -v mise &>/dev/null; then
         echo "  ✓ mise $(mise --version 2>&1 | head -1)"
@@ -88,7 +88,7 @@ $RUNNER run --rm chezmoi-test zsh -ic '
 # ── Smoke test: neovim + lazy.nvim ─────────────────────────────
 echo ""
 echo "=== Neovim smoke test (zsh session) ==="
-$RUNNER run --rm chezmoi-test zsh -ic '
+$RUNNER run --rm home2-test zsh -ic '
 
     echo "[1] neovim binary..."
     nvim --version | head -1
@@ -133,5 +133,5 @@ if [ -t 0 ]; then
         --rm \
         -it \
         -v "$(pwd):/root/.config/mise" \
-        chezmoi-test
+        home2-test
 fi
